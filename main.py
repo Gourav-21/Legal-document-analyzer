@@ -1,20 +1,16 @@
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from routes import router as api_router
-import os
-import pytesseract
+from database import Base, engine
+from routers import auth_router
+from labor_law_api import router as labor_law_router
+from routes import router as document_router
+from auth import get_current_user
 
-load_dotenv()
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
-pytesseract.pytesseract.tesseract_cmd = os.getenv("TESSERACT_CMD", "/usr/bin/tesseract")
-
-app = FastAPI(
-    title="Legal Document Analyzer",
-    description="API for analyzing payslips and contracts for Israeli labor law compliance",
-    version="1.0.0"
-)
+app = FastAPI()
 
 # Configure CORS
 app.add_middleware(
@@ -25,10 +21,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routes
-app.include_router(api_router, prefix="/api")
+# Include routers
+app.include_router(auth_router.router, prefix="/auth", tags=["authentication"])
+app.include_router(
+    labor_law_router,
+    prefix="/api",
+    tags=["labor_laws"],
+    dependencies=[Depends(get_current_user)]
+)
+app.include_router(
+    document_router,
+    prefix="/api",
+    tags=["documents"],
+    dependencies=[Depends(get_current_user)]
+)
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to Legal Document Analyzer API"}
+    return {"message": "Welcome to Legal Document API"}
 
