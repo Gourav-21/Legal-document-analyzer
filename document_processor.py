@@ -8,6 +8,10 @@ from io import BytesIO
 from typing import List, Dict, Union
 from docx import Document
 from labour_law import LaborLawStorage
+from google.cloud import vision
+import io
+from google.auth.credentials import AnonymousCredentials
+from google.cloud.vision import ImageAnnotatorClient
 
 class DocumentProcessor:
     def __init__(self):
@@ -23,6 +27,14 @@ class DocumentProcessor:
         if not os.path.exists(tesseract_path):
             raise Exception("Tesseract not found. Please install Tesseract and set TESSERACT_CMD environment variable.")
         pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        
+        # Initialize Vision client with API key
+        vision_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
+        if not vision_api_key:
+            raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_API_KEY environment variable.")
+        
+        self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
+
         
     def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]]):
         if not files:
@@ -44,7 +56,7 @@ class DocumentProcessor:
         
         # Process each file based on its type
         for file, doc_type in zip(files, doc_types):
-            extracted_text = self._extract_text(file.file.read(), file.filename)
+            extracted_text = self._extract_text2(file.file.read(), file.filename)
             if doc_type.lower() == "payslip":
                 payslip_text = extracted_text
             elif doc_type.lower() == "contract":
@@ -115,6 +127,7 @@ It is recommended to review the pension fund details, start date of employment, 
 ---
 
 IMPORTANT:
+- Respond in Hebrew
 - Format each violation with proper spacing and line breaks as shown above
 - Separate multiple violations with '---'
 - If no violations are found against the provided laws, respond with: "No violations found against the provided labor laws."
@@ -140,6 +153,7 @@ IMPORTANT:
 
             
     def _extract_text(self, content: bytes, filename: str) -> str:
+        print("tesseract")
         if filename.lower().endswith('.pdf'):
             try:
                 pdf_file = BytesIO(content)
@@ -165,4 +179,45 @@ IMPORTANT:
             image = Image.open(BytesIO(content))
             text = pytesseract.image_to_string(image, lang='eng+heb')
         return text
-    
+    # google vision api
+    def _extract_text2(self, content: bytes, filename: str) -> str:
+        print("google clound")
+        if filename.lower().endswith('.pdf'):
+            try:
+                pdf_file = BytesIO(content)
+                text = ''
+                with pdfplumber.open(pdf_file) as pdf:
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text and page_text.strip():
+                            text += page_text + "\n"
+                        else:
+                            # Convert PDF page to image and use Vision API
+                            img = page.to_image(resolution=300).original
+                            img_byte_arr = io.BytesIO()
+                            img.save(img_byte_arr, format='PNG')
+                            img_content = img_byte_arr.getvalue()
+                            
+                            vision_image = vision.Image(content=img_content)
+                            response = self.vision_client.text_detection(image=vision_image)
+                            if response.text_annotations:
+                                text_list = [text_annotation.description for text_annotation in response.text_annotations]
+                                text += " ".join(text_list) + "\n"
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error processing PDF: {str(e)}"
+                )
+        elif filename.lower().endswith('.docx'):
+            doc_file = BytesIO(content)
+            doc = Document(doc_file)
+            text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+        else:
+            # Use Vision API for images
+            vision_image = vision.Image(content=content)
+            response = self.vision_client.text_detection(image=vision_image)
+            print(response)
+            if response.text_annotations:
+                text = " ".join([text_annotation.description for text_annotation in response.text_annotations])
+            
+        return text
