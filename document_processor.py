@@ -216,7 +216,6 @@ IMPORTANT:
             # Use Vision API for images
             vision_image = vision.Image(content=content)
             response = self.vision_client.text_detection(image=vision_image)
-            print(response)
             if response.text_annotations:
                 text = " ".join([text_annotation.description for text_annotation in response.text_annotations])
             
