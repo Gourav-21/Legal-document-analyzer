@@ -41,3 +41,19 @@ async def delete_law(law_id: str):
             status_code=500,
             detail=f"Error deleting labor law: {str(e)}"
         )
+
+@router.put("/laws/{law_id}")
+async def update_law(law_id: str, law_input: LawText):
+    try:
+        updated_law = law_storage.update_law(law_id, law_input.text)
+        if updated_law:
+            return updated_law
+        raise HTTPException(
+            status_code=404,
+            detail="Law not found"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error updating labor law: {str(e)}"
+        )

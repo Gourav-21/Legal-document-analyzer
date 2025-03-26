@@ -17,6 +17,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# Add custom CSS for small buttons
+st.markdown("""
+<style>
+.stButton>button {
+    padding: 0.25rem 1rem;
+    font-size: 0.875rem;
+    min-height: 0;
+    width: 100%;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Title and description
 st.title("📄 Legal Document Analyzer")
 st.markdown("Upload your legal documents to check compliance with Israeli labor laws.")
@@ -113,8 +125,26 @@ if not existing_laws:
     st.info("No labor laws have been added yet.")
 else:
     for law in existing_laws:
-        col1, col2 = st.columns([5, 1])
-        with col1:
+        if f"editing_{law['id']}" not in st.session_state:
+            st.session_state[f"editing_{law['id']}"] = False
+            st.session_state[f"edited_text_{law['id']}"] = law["text"]
+        
+        if st.session_state[f"editing_{law['id']}"]:
+            edited_text = st.text_area(
+                "Edit Law Text",
+                value=st.session_state[f"edited_text_{law['id']}"],
+                height=100,
+                key=f"edit_law_{law['id']}"
+            )
+            if st.button("Save", key=f"save_{law['id']}"):
+                try:
+                    doc_processor.law_storage.update_law(law["id"], edited_text)
+                    st.session_state[f"editing_{law['id']}"] = False
+                    st.success("Law updated successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error updating law: {str(e)}")
+        else:
             st.text_area(
                 "Law Text",
                 value=law["text"],
@@ -122,13 +152,23 @@ else:
                 key=f"law_{law['id']}",
                 disabled=True
             )
-        with col2:
-            if st.button("🗑️ Delete", key=f"delete_{law['id']}"):
+            
+        # Action buttons below text area
+        button_cols = st.columns([1, 1])
+        with button_cols[0]:
+            if not st.session_state[f"editing_{law['id']}"]:
+                if st.button("✏️ Edit", key=f"edit_{law['id']}", use_container_width=True):
+                    st.session_state[f"editing_{law['id']}"] = True
+                    st.session_state[f"edited_text_{law['id']}"] = law["text"]
+                    st.rerun()
+        with button_cols[1]:
+            if st.button("🗑️ Delete", key=f"delete_{law['id']}", use_container_width=True):
                 if doc_processor.law_storage.delete_law(law["id"]):
                     st.success("Law deleted successfully!")
                     st.rerun()
                 else:
                     st.error("Error deleting law.")
+        # st.markdown("<hr style='margin: 1rem 0;'>", unsafe_allow_html=True)
 
 # Add footer
 st.markdown("---")
