@@ -85,6 +85,51 @@ if (payslip_files or contract_files) and st.button("Process Documents", type="pr
         st.error(f"Error processing documents: {str(e)}")
         st.info("Please ensure all documents are in the correct format and try again.")
 
+st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+st.markdown("---")
+st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
+
+# Add Law Management Section
+st.subheader("📚 Labor Law Management")
+
+# Add new law section
+with st.expander("Add New Labor Law", expanded=False):
+    new_law = st.text_area("Enter new labor law text", height=150)
+    if st.button("Add Law", type="primary", key="add_law"):
+        if new_law.strip():
+            try:
+                doc_processor.law_storage.add_law(new_law)
+                st.success("Law added successfully!")
+            except Exception as e:
+                st.error(f"Error adding law: {str(e)}")
+        else:
+            st.warning("Please enter law text before adding.")
+
+# Display existing laws
+st.subheader("Existing Labor Laws")
+existing_laws = doc_processor.law_storage.get_all_laws()
+
+if not existing_laws:
+    st.info("No labor laws have been added yet.")
+else:
+    for law in existing_laws:
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            st.text_area(
+                "Law Text",
+                value=law["text"],
+                height=100,
+                key=f"law_{law['id']}",
+                disabled=True
+            )
+        with col2:
+            if st.button("🗑️ Delete", key=f"delete_{law['id']}"):
+                if doc_processor.law_storage.delete_law(law["id"]):
+                    st.success("Law deleted successfully!")
+                    st.rerun()
+                else:
+                    st.error("Error deleting law.")
+
 # Add footer
 st.markdown("---")
 st.markdown(
