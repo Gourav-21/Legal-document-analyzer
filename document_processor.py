@@ -7,12 +7,16 @@ import pdfplumber
 from io import BytesIO
 from typing import List, Dict, Union
 from docx import Document
+from models import LaborLawStorage
 
 class DocumentProcessor:
     def __init__(self):
         # Initialize Gemini AI
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         self.model = genai.GenerativeModel('gemini-2.0-flash')
+        
+        # Initialize Labor Law Storage
+        self.law_storage = LaborLawStorage()
         
         # Configure Tesseract path
         tesseract_path = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
@@ -59,9 +63,15 @@ class DocumentProcessor:
             documents['contract'] = contract_text
             
         # Prepare the prompt for Gemini AI
-        prompt = f"""Analyze the following employment documents for potential legal violations under current labor laws.
+        # Get formatted labor laws
+        labor_laws = self.law_storage.format_laws_for_prompt()
+        
+        prompt = f"""You are a legal document analyzer specializing in Israeli labor law compliance.
 
-Documents to analyze:
+LABOR LAWS TO CHECK AGAINST:
+{labor_laws if labor_laws else 'No labor laws provided for analysis.'}
+
+DOCUMENTS PROVIDED FOR ANALYSIS:
 {', '.join(documents.keys())}
 
 """        
@@ -71,15 +81,44 @@ Documents to analyze:
             prompt += f"\n{doc_type.upper()} CONTENT:\n{content}\n"
             
         prompt += """
-\nPlease provide a comprehensive legal analysis including:
-1. Identified violations of labor laws
-2. Summary of relevant labor laws and regulations
-3. Similar case precedents
-4. Legal recommendations (including whether legal action is advisable)
-5. Supporting evidence from the documents
+INSTRUCTIONS:
+1. If no labor laws are provided, respond with: "No labor laws available for compliance analysis."
+2. If labor laws exist, analyze the documents ONLY against the provided laws.
+3. For each violation found, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
 
-Format the response in a structured way."""
+Violation Format Template:
 
+[VIOLATION TITLE]
+
+[SPECIFIC VIOLATION DETAILS]
+
+[LAW REFERENCE AND YEAR]
+
+[LEGAL IMPLICATIONS]
+
+[RECOMMENDED ACTIONS]
+
+---
+
+Example of correctly formatted violation:
+
+Possible Violation of Mandatory Pension Expansion Order
+
+The payslip shows no pension contribution, despite over 6 months of employment.
+
+According to the Mandatory Pension Expansion Order (2008), an employer is required to contribute to pension after 6 months of continuous employment (or 3 months with prior pension history).
+
+Lack of contribution may entitle the employee to retroactive compensation or legal action.
+
+It is recommended to review the pension fund details, start date of employment, and contract terms.
+
+---
+
+IMPORTANT:
+- Format each violation with proper spacing and line breaks as shown above
+- Separate multiple violations with '---'
+- If no violations are found against the provided laws, respond with: "No violations found against the provided labor laws."
+- Do not include any additional commentary or explanations outside of the violation format"""
         try:
             # Generate analysis using Gemini AI
             response = self.model.generate_content(prompt)
