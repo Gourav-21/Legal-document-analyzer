@@ -7,7 +7,7 @@ import pdfplumber
 from io import BytesIO
 from typing import List, Dict, Union
 from docx import Document
-from models import LaborLawStorage
+from labour_law import LaborLawStorage
 
 class DocumentProcessor:
     def __init__(self):

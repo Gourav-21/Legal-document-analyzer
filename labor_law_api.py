@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict
-from models import LaborLawStorage
+from labour_law import LaborLawStorage
 from pydantic import BaseModel
 
 router = APIRouter()
