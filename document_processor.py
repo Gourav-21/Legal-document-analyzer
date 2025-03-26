@@ -78,9 +78,9 @@ class DocumentProcessor:
         # Get formatted labor laws
         labor_laws = self.law_storage.format_laws_for_prompt()
         
-        prompt = f"""You are a legal document analyzer specializing in Israeli labor law compliance.
+        prompt = f"""You are a legal document analyzer specializing in Israeli labor law compliance based *only* on user-provided information.
 
-LABOR LAWS TO CHECK AGAINST:
+LABOR LAWS TO CHECK AGAINST(Your ONLY reference point):
 {labor_laws if labor_laws else 'No labor laws provided for analysis.'}
 
 DOCUMENTS PROVIDED FOR ANALYSIS:
