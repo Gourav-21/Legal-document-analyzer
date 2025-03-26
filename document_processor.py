@@ -94,7 +94,7 @@ DOCUMENTS PROVIDED FOR ANALYSIS:
             
         prompt += """
 INSTRUCTIONS:
-1. If no labor laws are provided, respond with: "No labor laws available for compliance analysis."
+1. If no labor laws are provided, respond with: "No labor laws available for compliance analysis." in Hebrew.
 2. If labor laws exist, analyze the documents ONLY against the provided laws.
 3. For each violation found, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
 
@@ -127,7 +127,7 @@ It is recommended to review the pension fund details, start date of employment, 
 ---
 
 IMPORTANT:
-- Respond in Hebrew
+- Always Respond in Hebrew
 - Format each violation with proper spacing and line breaks as shown above
 - Separate multiple violations with '---'
 - If no violations are found against the provided laws, respond with: "No violations found against the provided labor laws."
