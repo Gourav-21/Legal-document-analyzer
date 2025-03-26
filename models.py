@@ -36,5 +36,13 @@ class LaborLawStorage:
                 return True
         return False
     
+    def update_law(self, law_id: str, new_text: str) -> Dict:
+        for law in self.laws:
+            if law["id"] == law_id:
+                law["text"] = new_text
+                self._save_laws()
+                return law
+        return None
+
     def format_laws_for_prompt(self) -> str:
         return "\n\n".join(law["text"] for law in self.laws)
