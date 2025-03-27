@@ -105,6 +105,8 @@ Violation Format Template:
 
 [LAW REFERENCE AND YEAR]
 
+[SIMILAR CASES OR PRECEDENTS](I request to find a similar legal ruling for this case in israel from any sources, describing RESULT)
+
 [LEGAL IMPLICATIONS]
 
 [RECOMMENDED ACTIONS]
@@ -118,6 +120,8 @@ Possible Violation of Mandatory Pension Expansion Order
 The payslip shows no pension contribution, despite over 6 months of employment.
 
 According to the Mandatory Pension Expansion Order (2008), an employer is required to contribute to pension after 6 months of continuous employment (or 3 months with prior pension history).
+
+In the [NAME OF RULING] ruling, there was a similar case and the employee won 10,000 thousand shekels there
 
 Lack of contribution may entitle the employee to retroactive compensation or legal action.
 
