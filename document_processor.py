@@ -10,7 +10,6 @@ from docx import Document
 from labour_law import LaborLawStorage
 from google.cloud import vision
 import io
-from google.auth.credentials import AnonymousCredentials
 from google.cloud.vision import ImageAnnotatorClient
 
 class DocumentProcessor:
