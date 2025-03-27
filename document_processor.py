@@ -35,7 +35,7 @@ class DocumentProcessor:
         self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
 
         
-    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]]):
+    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]],user:str):
         if not files:
             raise HTTPException(
                 status_code=400,
@@ -62,10 +62,10 @@ class DocumentProcessor:
                 contract_text = extracted_text
 
         # Analyze the documents
-        result = self.analyze_violations(payslip_text, contract_text)
+        result = self.analyze_violations(payslip_text, contract_text,user)
         return result
     
-    def analyze_violations(self, payslip_text: str = None, contract_text: str = None) -> Dict:
+    def analyze_violations(self, payslip_text: str = None, contract_text: str = None,user:str = None) -> Dict:
         # Prepare documents for analysis
         documents = {}
         if payslip_text:
@@ -91,7 +91,7 @@ DOCUMENTS PROVIDED FOR ANALYSIS:
         for doc_type, content in documents.items():
             prompt += f"\n{doc_type.upper()} CONTENT:\n{content}\n"
             
-        prompt += """
+        prompt += f"""
 INSTRUCTIONS:
 1. If no labor laws are provided, respond with: "No labor laws available for compliance analysis." in Hebrew.
 2. If labor laws exist, analyze the documents ONLY against the provided laws.
@@ -99,7 +99,7 @@ INSTRUCTIONS:
 
 Violation Format Template:
 
-[VIOLATION TITLE]
+{"""[VIOLATION TITLE]
 
 [SPECIFIC VIOLATION DETAILS]
 
@@ -124,7 +124,22 @@ Lack of contribution may entitle the employee to retroactive compensation or leg
 It is recommended to review the pension fund details, start date of employment, and contract terms.
 
 ---
+""" if user == 'lawyer' else """
+[VIOLATION TITLE]
 
+[SIMPLE EXPLANATION OF WHAT THE EMPLOYER MIGHT OWE/DO]
+
+---
+
+Example of correctly formatted violation:
+    
+Your hourly wage appears to be below the legal minimum (32.79 ILS/hour).
+
+You may be entitled to compensation from your employer.
+
+---
+
+"""}
 IMPORTANT:
 - Always Respond in Hebrew
 - Format each violation with proper spacing and line breaks as shown above

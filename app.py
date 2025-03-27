@@ -65,48 +65,94 @@ with col2:
         key="contract_upload"
     )
 
-# Add process button
-if (payslip_files or contract_files) and st.button("נתח מסמכים", type="primary"):
-    try:
-        with st.spinner("מעבד מסמכים..."):
-            # Process documents
-            all_files = []
-            all_doc_types = []
-            
-            # Add payslip files
-            if payslip_files:
-                for file in payslip_files:
-                    file_content = file.read()
-                    fastapi_file = UploadFile(
-                        filename=file.name,
-                        file=BytesIO(file_content)
-                    )
-                    all_files.append(fastapi_file)
-                    all_doc_types.append("payslip")
-            
-            # Add contract files
-            if contract_files:
-                for file in contract_files:
-                    file_content = file.read()
-                    fastapi_file = UploadFile(
-                        filename=file.name,
-                        file=BytesIO(file_content)
-                    )
-                    all_files.append(fastapi_file)
-                    all_doc_types.append("contract")
-            
-            # Process all documents
-            result = doc_processor.process_document(all_files, all_doc_types)
-            
-            # Display results
-            if result.get('legal_analysis'):
-                analysis = result['legal_analysis']
-                st.markdown("### תוצאות ניתוח משפטי")
-                st.markdown(analysis)
+# Add process buttons
+col1, col2 = st.columns(2)
+
+with col1:
+    if (payslip_files or contract_files) and st.button("ניתוח משתמש רגיל", type="primary"):
+        try:
+            with st.spinner("מעבד מסמכים..."):
+                # Process documents
+                all_files = []
+                all_doc_types = []
                 
-    except Exception as e:
-        st.error(f"שגיאה בעיבוד המסמכים: {str(e)}")
-        st.info("אנא ודא שהמסמכים בפורמט הנכון ונסה שוב.")
+                # Add payslip files
+                if payslip_files:
+                    for file in payslip_files:
+                        file_content = file.read()
+                        fastapi_file = UploadFile(
+                            filename=file.name,
+                            file=BytesIO(file_content)
+                        )
+                        all_files.append(fastapi_file)
+                        all_doc_types.append("payslip")
+                
+                # Add contract files
+                if contract_files:
+                    for file in contract_files:
+                        file_content = file.read()
+                        fastapi_file = UploadFile(
+                            filename=file.name,
+                            file=BytesIO(file_content)
+                        )
+                        all_files.append(fastapi_file)
+                        all_doc_types.append("contract")
+                
+                # Process all documents
+                result = doc_processor.process_document(all_files, all_doc_types, "user")
+                
+                # Display results
+                if result.get('legal_analysis'):
+                    analysis = result['legal_analysis']
+                    st.markdown("### תוצאות ניתוח משפטי")
+                    st.markdown(analysis)
+                    
+        except Exception as e:
+            st.error(f"שגיאה בעיבוד המסמכים: {str(e)}")
+            st.info("אנא ודא שהמסמכים בפורמט הנכון ונסה שוב.")
+
+with col2:
+    if (payslip_files or contract_files) and st.button("ניתוח עורך דין", type="primary"):
+        try:
+            with st.spinner("מעבד מסמכים..."):
+                # Process documents
+                all_files = []
+                all_doc_types = []
+                
+                # Add payslip files
+                if payslip_files:
+                    for file in payslip_files:
+                        file_content = file.read()
+                        fastapi_file = UploadFile(
+                            filename=file.name,
+                            file=BytesIO(file_content)
+                        )
+                        all_files.append(fastapi_file)
+                        all_doc_types.append("payslip")
+                
+                # Add contract files
+                if contract_files:
+                    for file in contract_files:
+                        file_content = file.read()
+                        fastapi_file = UploadFile(
+                            filename=file.name,
+                            file=BytesIO(file_content)
+                        )
+                        all_files.append(fastapi_file)
+                        all_doc_types.append("contract")
+                
+                # Process all documents with lawyer mode
+                result = doc_processor.process_document(all_files, all_doc_types, "lawyer")
+                
+                # Display results
+                if result.get('legal_analysis'):
+                    analysis = result['legal_analysis']
+                    st.markdown("### תוצאות ניתוח משפטי מפורט")
+                    st.markdown(analysis)
+                
+        except Exception as e:
+            st.error(f"שגיאה בעיבוד המסמכים: {str(e)}")
+            st.info("אנא ודא שהמסמכים בפורמט הנכון ונסה שוב.")
 
 st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
 st.markdown("---")
@@ -126,7 +172,7 @@ with st.expander("הוסף חוק עבודה חדש", expanded=False):
             except Exception as e:
                 st.error(f"שגיאה בהוספת החוק: {str(e)}")
         else:
-            st.warning("אנא הכנס טקסט של חוק לפני ההוספה.")
+            st.warning("אנא הכנס טקסט של חוק לפני הוספה.")
 
 # Display existing laws
 st.subheader("חוקי עבודה קיימים")
