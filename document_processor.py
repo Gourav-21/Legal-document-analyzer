@@ -53,11 +53,15 @@ class DocumentProcessor:
         payslip_text = None
         contract_text = None
         
+        # Initialize payslip counter
+        payslip_counter = 0
+        
         # Process each file based on its type
         for file, doc_type in zip(files, doc_types):
             extracted_text = self._extract_text2(file.file.read(), file.filename)
             if doc_type.lower() == "payslip":
-                payslip_text = extracted_text
+                payslip_counter += 1
+                payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
             elif doc_type.lower() == "contract":
                 contract_text = extracted_text
 
@@ -171,7 +175,6 @@ IMPORTANT:
 
             
     def _extract_text(self, content: bytes, filename: str) -> str:
-        print("tesseract")
         if filename.lower().endswith('.pdf'):
             try:
                 pdf_file = BytesIO(content)
@@ -199,7 +202,6 @@ IMPORTANT:
         return text
     # google vision api
     def _extract_text2(self, content: bytes, filename: str) -> str:
-        print("google clound")
         if filename.lower().endswith('.pdf'):
             try:
                 pdf_file = BytesIO(content)
