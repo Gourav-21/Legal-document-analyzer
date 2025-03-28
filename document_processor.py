@@ -55,7 +55,6 @@ class DocumentProcessor:
         
         # Initialize payslip counter
         payslip_counter = 0
-        
         # Process each file based on its type
         for file, doc_type in zip(files, doc_types):
             extracted_text = self._extract_text2(file.file.read(), file.filename)
@@ -64,7 +63,6 @@ class DocumentProcessor:
                 payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
             elif doc_type.lower() == "contract":
                 contract_text = extracted_text
-
         # Analyze the documents
         result = self.analyze_violations(payslip_text, contract_text,user)
         return result
@@ -233,10 +231,18 @@ IMPORTANT:
             doc = Document(doc_file)
             text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
         else:
-            # Use Vision API for images
-            vision_image = vision.Image(content=content)
-            response = self.vision_client.text_detection(image=vision_image)
-            if response.text_annotations:
-                text = " ".join([text_annotation.description for text_annotation in response.text_annotations])
-            
+                vision_image = vision.Image(content=content)
+                response = self.vision_client.text_detection(image=vision_image)
+                
+                if response.error.message:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Vision API Error: {response.error.message}"
+                    )
+                
+                if response.text_annotations:
+                    text = " ".join([text_annotation.description for text_annotation in response.text_annotations])
+                else:
+                    text = ""
+           
         return text
