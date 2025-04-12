@@ -36,7 +36,7 @@ class DocumentProcessor:
         self.image_context = {"language_hints": ["he"]} 
 
         
-    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]],user:str):
+    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]]):
         if not files:
             raise HTTPException(
                 status_code=400,
@@ -64,11 +64,13 @@ class DocumentProcessor:
                 payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
             elif doc_type.lower() == "contract":
                 contract_text = extracted_text
-        # Analyze the documents
-        result = self.analyze_violations(payslip_text, contract_text,user)
-        return result
+        # Return the extracted texts
+        return {
+            "payslip_text": payslip_text,
+            "contract_text": contract_text
+        }
     
-    def analyze_violations(self, payslip_text: str = None, contract_text: str = None,user:str = None) -> Dict:
+    def analyze_violations(self, payslip_text: str = None, contract_text: str = None) -> Dict:
         # Prepare documents for analysis
         documents = {}
         if payslip_text:
@@ -131,21 +133,6 @@ Lack of contribution may entitle the employee to retroactive compensation or leg
 It is recommended to review the pension fund details, start date of employment, and contract terms.
 
 ---
-""" if user == 'lawyer' else """
-[VIOLATION TITLE]
-
-[SIMPLE EXPLANATION OF WHAT THE EMPLOYER MIGHT OWE/DO]
-
----
-
-Example of correctly formatted violation:
-    
-Your hourly wage appears to be below the legal minimum (32.79 ILS/hour).
-
-You may be entitled to compensation from your employer.
-
----
-
 """}
 IMPORTANT:
 - Always Respond in Hebrew
