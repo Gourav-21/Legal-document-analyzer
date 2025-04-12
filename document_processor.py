@@ -70,7 +70,7 @@ class DocumentProcessor:
             "contract_text": contract_text
         }
     
-    def analyze_violations(self, payslip_text: str = None, contract_text: str = None) -> Dict:
+    def create_report(self, payslip_text: str = None, contract_text: str = None) -> Dict:
         # Prepare documents for analysis
         documents = {}
         if payslip_text:

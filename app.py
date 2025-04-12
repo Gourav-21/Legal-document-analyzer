@@ -113,7 +113,7 @@ if st.session_state.processed_result:
     if st.button("צור דוח ניתוח", type="primary"):
         try:
             with st.spinner("מנתח..."):
-                result = doc_processor.analyze_violations(
+                result = doc_processor.create_report(
                     st.session_state.processed_result.get('payslip_text'),
                     st.session_state.processed_result.get('contract_text')
                 )

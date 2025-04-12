@@ -33,7 +33,7 @@ async def create_report(
                 detail="At least one document text must be provided"
             )
         
-        result = doc_processor.analyze_violations(
+        result = doc_processor.create_report(
             payslip_text=payslip_text,
             contract_text=contract_text
         )
