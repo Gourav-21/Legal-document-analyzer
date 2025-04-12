@@ -40,6 +40,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize session state for document processing
+if 'processed_result' not in st.session_state:
+    st.session_state.processed_result = None
+
 # Title and description
 st.title("📄 מנתח מסמכים משפטיים")
 st.markdown("העלה את המסמכים המשפטיים שלך לבדיקת תאימות לחוקי העבודה הישראליים.")
@@ -65,95 +69,59 @@ with col2:
         key="contract_upload"
     )
 
-# Add process buttons
-col1, col2 = st.columns(2)
+# Process documents button
+if (payslip_files or contract_files) and st.button("עבד מסמכים", type="primary"):
+    try:
+        with st.spinner("מעבד מסמכים..."):
+            # Process documents
+            all_files = []
+            all_doc_types = []
+            
+            # Add payslip files
+            if payslip_files:
+                for file in payslip_files:
+                    file_content = file.read()
+                    fastapi_file = UploadFile(
+                        filename=file.name,
+                        file=BytesIO(file_content)
+                    )
+                    all_files.append(fastapi_file)
+                    all_doc_types.append("payslip")
+            
+            # Add contract files
+            if contract_files:
+                for file in contract_files:
+                    file_content = file.read()
+                    fastapi_file = UploadFile(
+                        filename=file.name,
+                        file=BytesIO(file_content)
+                    )
+                    all_files.append(fastapi_file)
+                    all_doc_types.append("contract")
+            
+            # Process all documents
+            st.session_state.processed_result = doc_processor.process_document(all_files, all_doc_types)
+            print(st.session_state.processed_result)
+            st.success("המסמכים עובדו בהצלחה! כעת תוכל לבחור סוג ניתוח.")
+            
+    except Exception as e:
+        st.error(f"שגיאה בעיבוד המסמכים: {str(e)}")
+        st.info("אנא ודא שהמסמכים בפורמט הנכון ונסה שוב.")
 
-with col1:
-    if (payslip_files or contract_files) and st.button("ניתוח משתמש רגיל", type="primary"):
+# Analysis buttons (only shown after processing)
+if st.session_state.processed_result:
+    if st.button("צור דוח ניתוח", type="primary"):
         try:
-            with st.spinner("מעבד מסמכים..."):
-                # Process documents
-                all_files = []
-                all_doc_types = []
-                
-                # Add payslip files
-                if payslip_files:
-                    for file in payslip_files:
-                        file_content = file.read()
-                        fastapi_file = UploadFile(
-                            filename=file.name,
-                            file=BytesIO(file_content)
-                        )
-                        all_files.append(fastapi_file)
-                        all_doc_types.append("payslip")
-                
-                # Add contract files
-                if contract_files:
-                    for file in contract_files:
-                        file_content = file.read()
-                        fastapi_file = UploadFile(
-                            filename=file.name,
-                            file=BytesIO(file_content)
-                        )
-                        all_files.append(fastapi_file)
-                        all_doc_types.append("contract")
-                
-                # Process all documents
-                result = doc_processor.process_document(all_files, all_doc_types, "user")
-                
-                # Display results
+            with st.spinner("מנתח..."):
+                result = doc_processor.analyze_violations(
+                    st.session_state.processed_result.get('payslip_text'),
+                    st.session_state.processed_result.get('contract_text')
+                )
                 if result.get('legal_analysis'):
-                    analysis = result['legal_analysis']
                     st.markdown("### תוצאות ניתוח משפטי")
-                    st.markdown(analysis)
-                    
+                    st.markdown(result['legal_analysis'])
         except Exception as e:
-            st.error(f"שגיאה בעיבוד המסמכים: {str(e)}")
-            st.info("אנא ודא שהמסמכים בפורמט הנכון ונסה שוב.")
-
-with col2:
-    if (payslip_files or contract_files) and st.button("ניתוח עורך דין", type="primary"):
-        try:
-            with st.spinner("מעבד מסמכים..."):
-                # Process documents
-                all_files = []
-                all_doc_types = []
-                
-                # Add payslip files
-                if payslip_files:
-                    for file in payslip_files:
-                        file_content = file.read()
-                        fastapi_file = UploadFile(
-                            filename=file.name,
-                            file=BytesIO(file_content)
-                        )
-                        all_files.append(fastapi_file)
-                        all_doc_types.append("payslip")
-                
-                # Add contract files
-                if contract_files:
-                    for file in contract_files:
-                        file_content = file.read()
-                        fastapi_file = UploadFile(
-                            filename=file.name,
-                            file=BytesIO(file_content)
-                        )
-                        all_files.append(fastapi_file)
-                        all_doc_types.append("contract")
-                
-                # Process all documents with lawyer mode
-                result = doc_processor.process_document(all_files, all_doc_types, "lawyer")
-                
-                # Display results
-                if result.get('legal_analysis'):
-                    analysis = result['legal_analysis']
-                    st.markdown("### תוצאות ניתוח משפטי מפורט")
-                    st.markdown(analysis)
-                
-        except Exception as e:
-            st.error(f"שגיאה בעיבוד המסמכים: {str(e)}")
-            st.info("אנא ודא שהמסמכים בפורמט הנכון ונסה שוב.")
-
+            st.error(f"שגיאה בניתוח: {str(e)}")
 st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
 st.markdown("---")
 st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
