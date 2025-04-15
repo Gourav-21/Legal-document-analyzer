@@ -8,6 +8,7 @@ from io import BytesIO
 from typing import List, Dict, Union
 from docx import Document
 from labour_law import LaborLawStorage
+from letter_format_api import LetterFormatStorage
 from google.cloud import vision
 import io
 from google.cloud.vision import ImageAnnotatorClient
@@ -20,6 +21,7 @@ class DocumentProcessor:
         
         # Initialize Labor Law Storage
         self.law_storage = LaborLawStorage()
+        self.letter_format = LetterFormatStorage()
         
         # Configure Tesseract path
         tesseract_path = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
@@ -70,7 +72,7 @@ class DocumentProcessor:
             "contract_text": contract_text
         }
     
-    def create_report(self, payslip_text: str = None, contract_text: str = None) -> Dict:
+    def create_report(self, payslip_text: str = None, contract_text: str = None, type: str = "report") -> Dict:
         # Prepare documents for analysis
         documents = {}
         if payslip_text:
@@ -96,7 +98,8 @@ DOCUMENTS PROVIDED FOR ANALYSIS:
         for doc_type, content in documents.items():
             prompt += f"\n{doc_type.upper()} CONTENT:\n{content}\n"
             
-        prompt += f"""
+        if(type=='report'):    
+            prompt += f"""
 INSTRUCTIONS:
 1. If no labor laws are provided, respond with: "אין חוקים לעבודה זמינים לניתוח התאמה." in Hebrew.
 2. If labor laws exist, analyze the documents ONLY against the provided laws.
@@ -140,6 +143,113 @@ IMPORTANT:
 - Separate multiple violations with '---'
 - If no violations are found against the provided laws, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
 - Do not include any additional commentary or explanations outside of the violation format"""
+
+
+        elif(type=='profitability'):    
+            prompt += f"""
+INSTRUCTIONS:
+1. Analyze the provided documents and identify potential labor law violations.
+2. For each violation, find similar legal cases and their outcomes (both successful and unsuccessful).
+3. If similar cases were unsuccessful:
+   - Explain why the cases were unsuccessful
+   - Provide a clear recommendation against pursuing legal action
+   - List potential risks and costs
+
+4. If similar cases were successful, calculate:
+   - Average compensation amount from successful cases
+   - Estimated legal fees (30% of potential compensation)
+   - Tax implications (25% of net compensation)
+   - Time and effort cost estimation
+
+Provide the analysis in the following format:
+
+ניתוח כדאיות כלכלית:
+
+הפרות שזוהו:
+[List identified violations]
+
+תקדימים משפטיים:
+[Similar cases with outcomes - both successful and unsuccessful]
+
+במקרה של תקדימים שליליים:
+- סיבות לדחיית התביעות: [REASONS]
+- סיכונים אפשריים: [RISKS]
+- המלצה: לא מומלץ להגיש תביעה בשל [EXPLANATION]
+
+במקרה של תקדימים חיוביים:
+ניתוח כספי:
+- סכום פיצוי ממוצע: [AMOUNT] ₪
+- עלות משוערת של עורך דין (30%): [AMOUNT] ₪
+- השלכות מס (25% מהסכום נטו): [AMOUNT] ₪
+- סכום נטו משוער: [AMOUNT] ₪
+
+המלצה סופית:
+[Based on analysis of both successful and unsuccessful cases, provide clear recommendation]
+"""
+            
+        elif(type=='professional'):    
+            prompt += f"""
+INSTRUCTIONS:
+Analyze the provided documents for wage-related violations based on the provided labor laws and calculate monetary differences.
+
+Provide the analysis in the following format in Hebrew:
+
+ניתוח מקצועי של הפרות שכר:
+
+פירוט הפרות:
+[For each violation found in the documents, provide:]
+- סוג ההפרה: [Type of violation based on the relevant labor law]
+- פירוט ההפרה: [Detailed description of the violation]
+- חישוב כספי: [Monetary calculation showing the difference between what was paid and what should have been paid]
+
+חישוב מפורט:
+[For each violation, show:]
+- תעריף נדרש לפי חוק: [Required rate/amount according to law]
+- תעריף/סכום ששולם בפועל: [Actually paid rate/amount]
+- תקופת ההפרה: [Period of violation]
+- חישוב ההפרש: [Calculation of the difference]
+
+אסמכתא משפטית:
+[For each violation:]
+- חוק רלוונטי: [Relevant law from provided laws]
+- סעיף ספציפי: [Specific section]
+- דרישות החוק: [Law requirements]
+
+סיכום:
+- סך הפרשים: [Total differences owed]
+- ריבית והצמדה: [Interest and linkage if applicable]
+- סך כולל: [Grand total]
+
+IMPORTANT:
+- Base all calculations only on the provided labor laws
+- Show clear mathematical calculations
+- Reference specific sections of the provided laws
+- Do not include any assumptions not supported by the documents or provided laws
+"""
+            
+        elif(type=='warning_letter'):
+            format=self.letter_format.get_format()
+            prompt += f"""
+INSTRUCTIONS:
+1. Analyze the provided documents for labor law violations.
+2. If violations are found, generate a formal warning letter using the provided template.
+3. If no violations are found, respond with: "לא נמצאו הפרות המצדיקות מכתב התראה." in Hebrew.
+
+Warning Letter Template:
+{format.get('content', '')}
+
+Please generate the warning letter in Hebrew with the following guidelines:
+- Replace [EMPLOYER_NAME] with the employer's name from the documents
+- Replace [VIOLATION_DETAILS] with specific details of each violation found
+- Replace [LAW_REFERENCES] with relevant labor law citations
+- Replace [REQUIRED_ACTIONS] with clear corrective actions needed
+- Replace [DEADLINE] with a reasonable timeframe for corrections (typically 14 days)
+- Maintain a professional and formal tone throughout
+- Include all violations found in the analysis
+- Format the letter according to the provided template structure
+"""
+            
+            
         try:
             # Generate analysis using Gemini AI
             response = self.model.generate_content(prompt)
