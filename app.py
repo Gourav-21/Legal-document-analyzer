@@ -48,26 +48,31 @@ if 'processed_result' not in st.session_state:
 st.title("📄 מנתח מסמכים משפטיים")
 st.markdown("העלה את המסמכים המשפטיים שלך לבדיקת תאימות לחוקי העבודה הישראליים.")
 
-# Create document upload sections
-col1, col2 = st.columns(2)
+# Create tabs
+tab1, tab2, tab3 = st.tabs(["📄 ניתוח מסמכים", "📚 ניהול חוקים", "📝 ניהול תבנית"])
 
-with col1:
-    st.subheader("📄 תלושי שכר")
-    payslip_files = st.file_uploader(
-        "העלה תלושי שכר",
-        type=["pdf", "png", "jpg", "jpeg", 'webp', 'docx'],
-        accept_multiple_files=True,
-        key="payslip_upload"
-    )
+# Document Analysis Tab
+with tab1:
+    # Create document upload sections
+    col1, col2 = st.columns(2)
 
-with col2:
-    st.subheader("📑 חוזי עבודה")
-    contract_files = st.file_uploader(
-        "העלה חוזי עבודה",
-        type=["pdf", "png", "jpg", "jpeg", 'webp', 'docx'],
-        accept_multiple_files=True,
-        key="contract_upload"
-    )
+    with col1:
+        st.subheader("📄 תלושי שכר")
+        payslip_files = st.file_uploader(
+            "העלה תלושי שכר",
+            type=["pdf", "png", "jpg", "jpeg", 'webp', 'docx'],
+            accept_multiple_files=True,
+            key="payslip_upload"
+        )
+
+    with col2:
+        st.subheader("📑 חוזי עבודה")
+        contract_files = st.file_uploader(
+            "העלה חוזי עבודה",
+            type=["pdf", "png", "jpg", "jpeg", 'webp', 'docx'],
+            accept_multiple_files=True,
+            key="contract_upload"
+        )
 
 # Process documents button
 if (payslip_files or contract_files) and st.button("עבד מסמכים", type="primary"):
@@ -101,7 +106,6 @@ if (payslip_files or contract_files) and st.button("עבד מסמכים", type="
             
             # Process all documents
             st.session_state.processed_result = doc_processor.process_document(all_files, all_doc_types)
-            print(st.session_state.processed_result)
             st.success("המסמכים עובדו בהצלחה! כעת תוכל לבחור סוג ניתוח.")
             
     except Exception as e:
@@ -110,90 +114,156 @@ if (payslip_files or contract_files) and st.button("עבד מסמכים", type="
 
 # Analysis buttons (only shown after processing)
 if st.session_state.processed_result:
-    if st.button("צור דוח ניתוח", type="primary"):
-        try:
-            with st.spinner("מנתח..."):
-                result = doc_processor.create_report(
-                    st.session_state.processed_result.get('payslip_text'),
-                    st.session_state.processed_result.get('contract_text')
-                )
-                if result.get('legal_analysis'):
-                    st.markdown("### תוצאות ניתוח משפטי")
-                    st.markdown(result['legal_analysis'])
-        except Exception as e:
-            st.error(f"שגיאה בניתוח: {str(e)}")
-st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
-st.markdown("---")
-st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
-
-# Add Law Management Section
-st.subheader("📚 ניהול חוקי עבודה")
-
-# Add new law section
-with st.expander("הוסף חוק עבודה חדש", expanded=False):
-    new_law = st.text_area("הכנס טקסט של חוק עבודה חדש", height=150)
-    if st.button("הוסף חוק", type="primary", key="add_law"):
-        if new_law.strip():
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("דוח ניתוח משפטי", type="primary", key="report_btn"):
             try:
-                doc_processor.law_storage.add_law(new_law)
-                st.success("החוק נוסף בהצלחה!")
+                with st.spinner("מנתח..."):
+                    result = doc_processor.create_report(
+                        st.session_state.processed_result.get('payslip_text'),
+                        st.session_state.processed_result.get('contract_text'),
+                        type="report"
+                    )
+                    if result.get('legal_analysis'):
+                        st.markdown("### תוצאות ניתוח משפטי")
+                        st.markdown(result['legal_analysis'])
             except Exception as e:
-                st.error(f"שגיאה בהוספת החוק: {str(e)}")
-        else:
-            st.warning("אנא הכנס טקסט של חוק לפני הוספה.")
-
-# Display existing laws
-st.subheader("חוקי עבודה קיימים")
-existing_laws = doc_processor.law_storage.get_all_laws()
-
-if not existing_laws:
-    st.info("טרם נוספו חוקי עבודה.")
-else:
-    for law in existing_laws:
-        if f"editing_{law['id']}" not in st.session_state:
-            st.session_state[f"editing_{law['id']}"] = False
-            st.session_state[f"edited_text_{law['id']}"] = law["text"]
-        
-        if st.session_state[f"editing_{law['id']}"]:
-            edited_text = st.text_area(
-                "ערוך טקסט חוק",
-                value=st.session_state[f"edited_text_{law['id']}"],
-                height=100,
-                key=f"edit_law_{law['id']}"
-            )
-            if st.button("שמור", key=f"save_{law['id']}"):
+                st.error(f"שגיאה בניתוח: {str(e)}")
+                
+        if st.button("ניתוח כדאיות כלכלית", type="primary", key="profitability_btn"):
+            try:
+                with st.spinner("מנתח כדאיות כלכלית..."):
+                    result = doc_processor.create_report(
+                        st.session_state.processed_result.get('payslip_text'),
+                        st.session_state.processed_result.get('contract_text'),
+                        type="profitability"
+                    )
+                    if result.get('legal_analysis'):
+                        st.markdown("### תוצאות ניתוח כדאיות כלכלית")
+                        st.markdown(result['legal_analysis'])
+            except Exception as e:
+                st.error(f"שגיאה בניתוח: {str(e)}")
+    
+    with col2:
+        if st.button("ניתוח מקצועי", type="primary", key="professional_btn"):
+            try:
+                with st.spinner("מבצע ניתוח מקצועי..."):
+                    result = doc_processor.create_report(
+                        st.session_state.processed_result.get('payslip_text'),
+                        st.session_state.processed_result.get('contract_text'),
+                        type="professional"
+                    )
+                    if result.get('legal_analysis'):
+                        st.markdown("### תוצאות ניתוח מקצועי")
+                        st.markdown(result['legal_analysis'])
+            except Exception as e:
+                st.error(f"שגיאה בניתוח: {str(e)}")
+                
+        if st.button("מכתב התראה", type="primary", key="warning_letter_btn"):
+            try:
+                with st.spinner("מכין מכתב התראה..."):
+                    result = doc_processor.create_report(
+                        st.session_state.processed_result.get('payslip_text'),
+                        st.session_state.processed_result.get('contract_text'),
+                        type="warning_letter"
+                    )
+                    if result.get('legal_analysis'):
+                        st.markdown("### מכתב התראה")
+                        st.markdown(result['legal_analysis'])
+            except Exception as e:
+                st.error(f"שגיאה בהכנת המכתב: {str(e)}")
+# Law Management Tab
+with tab2:
+    st.subheader("📚 ניהול חוקי עבודה")
+    
+    # Add new law section
+    with st.expander("הוסף חוק עבודה חדש", expanded=False):
+        new_law = st.text_area("הכנס טקסט של חוק עבודה חדש", height=150)
+        if st.button("הוסף חוק", type="primary", key="add_law"):
+            if new_law.strip():
                 try:
-                    doc_processor.law_storage.update_law(law["id"], edited_text)
-                    st.session_state[f"editing_{law['id']}"] = False
-                    st.success("החוק עודכן בהצלחה!")
-                    st.rerun()
+                    doc_processor.law_storage.add_law(new_law)
+                    st.success("החוק נוסף בהצלחה!")
                 except Exception as e:
-                    st.error(f"שגיאה בעדכון החוק: {str(e)}")
-        else:
-            st.text_area(
-                "טקסט החוק",
-                value=law["text"],
-                height=100,
-                key=f"law_{law['id']}",
-                disabled=True
-            )
+                    st.error(f"שגיאה בהוספת החוק: {str(e)}")
+            else:
+                st.warning("אנא הכנס טקסט של חוק לפני הוספה.")
+
+    # Display existing laws
+    st.subheader("חוקי עבודה קיימים")
+    existing_laws = doc_processor.law_storage.get_all_laws()
+
+    if not existing_laws:
+        st.info("טרם נוספו חוקי עבודה.")
+    else:
+        for law in existing_laws:
+            if f"editing_{law['id']}" not in st.session_state:
+                st.session_state[f"editing_{law['id']}"] = False
+                st.session_state[f"edited_text_{law['id']}"] = law["text"]
             
-        # Action buttons below text area
-        button_cols = st.columns([1, 1])
-        with button_cols[0]:
-            if not st.session_state[f"editing_{law['id']}"]:
-                if st.button("✏️ ערוך", key=f"edit_{law['id']}", use_container_width=True):
-                    st.session_state[f"editing_{law['id']}"] = True
-                    st.session_state[f"edited_text_{law['id']}"] = law["text"]
-                    st.rerun()
-        with button_cols[1]:
-            if st.button("🗑️ מחק", key=f"delete_{law['id']}", use_container_width=True):
-                if doc_processor.law_storage.delete_law(law["id"]):
-                    st.success("החוק נמחק בהצלחה!")
-                    st.rerun()
-                else:
-                    st.error("שגיאה במחיקת החוק.")
-        # st.markdown("<hr style='margin: 1rem 0;'>", unsafe_allow_html=True)
+            if st.session_state[f"editing_{law['id']}"]:
+                edited_text = st.text_area(
+                    "ערוך טקסט חוק",
+                    value=st.session_state[f"edited_text_{law['id']}"],
+                    height=100,
+                    key=f"edit_law_{law['id']}"
+                )
+                if st.button("שמור", key=f"save_{law['id']}"):
+                    try:
+                        doc_processor.law_storage.update_law(law["id"], edited_text)
+                        st.session_state[f"editing_{law['id']}"] = False
+                        st.success("החוק עודכן בהצלחה!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"שגיאה בעדכון החוק: {str(e)}")
+            else:
+                st.text_area(
+                    "טקסט החוק",
+                    value=law["text"],
+                    height=100,
+                    key=f"law_{law['id']}",
+                    disabled=True
+                )
+                
+            # Action buttons below text area
+            button_cols = st.columns([1, 1])
+            with button_cols[0]:
+                if not st.session_state[f"editing_{law['id']}"]:
+                    if st.button("✏️ ערוך", key=f"edit_{law['id']}", use_container_width=True):
+                        st.session_state[f"editing_{law['id']}"] = True
+                        st.session_state[f"edited_text_{law['id']}"] = law["text"]
+                        st.rerun()
+            with button_cols[1]:
+                if st.button("🗑️ מחק", key=f"delete_{law['id']}", use_container_width=True):
+                    if doc_processor.law_storage.delete_law(law["id"]):
+                        st.success("החוק נמחק בהצלחה!")
+                        st.rerun()
+                    else:
+                        st.error("שגיאה במחיקת החוק.")
+
+# Letter Format Management Tab
+with tab3:
+    st.subheader("📝 ניהול תבנית מכתב")
+    
+    # Get current format
+    current_format = doc_processor.letter_format.get_format()
+    
+    # Edit letter format
+    letter_format = st.text_area(
+        "תבנית מכתב התראה",
+        value=current_format.get("content", ""),
+        height=300,
+        help="הכנס את תבנית מכתב ההתראה כאן. ניתן להשתמש בתגיות מיוחדות שיוחלפו בערכים בפועל."
+    )
+    
+    # Save button
+    if st.button("שמור תבנית", type="primary"):
+        try:
+            doc_processor.letter_format.update_format(letter_format)
+            st.success("תבנית המכתב נשמרה בהצלחה!")
+        except Exception as e:
+            st.error(f"שגיאה בשמירת התבנית: {str(e)}")
 
 # Add footer
 st.markdown("---")
