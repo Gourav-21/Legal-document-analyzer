@@ -98,6 +98,11 @@ DOCUMENTS PROVIDED FOR ANALYSIS:
         for doc_type, content in documents.items():
             prompt += f"\n{doc_type.upper()} CONTENT:\n{content}\n"
             
+            prompt += f"""
+INSTRUCTIONS:
+1. If no labor laws are provided, respond with: "אין חוקים לעבודה זמינים לניתוח התאמה." in Hebrew.
+2. If labor laws exist, analyze the documents ONLY against the provided laws."""
+            
         if(type=='report'):    
             prompt += f"""
 INSTRUCTIONS:
@@ -107,7 +112,7 @@ INSTRUCTIONS:
 
 Violation Format Template:
 
-{"""[VIOLATION TITLE]
+[VIOLATION TITLE]
 
 [SPECIFIC VIOLATION DETAILS]
 
@@ -136,7 +141,7 @@ Lack of contribution may entitle the employee to retroactive compensation or leg
 It is recommended to review the pension fund details, start date of employment, and contract terms.
 
 ---
-"""}
+
 IMPORTANT:
 - Always Respond in Hebrew
 - Format each violation with proper spacing and line breaks as shown above
