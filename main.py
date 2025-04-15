@@ -5,6 +5,7 @@ from database import Base, engine
 from routers import auth_router
 from labor_law_api import router as labor_law_router
 from routes import router as document_router
+from letter_format_api import router as letter_format_router
 from auth import get_current_user
 
 # Create database tables
@@ -33,6 +34,12 @@ app.include_router(
     document_router,
     prefix="/api",
     tags=["documents"],
+    dependencies=[Depends(get_current_user)]
+)
+app.include_router(
+    letter_format_router,
+    prefix="/api",
+    tags=["letter_formats"],
     dependencies=[Depends(get_current_user)]
 )
 
