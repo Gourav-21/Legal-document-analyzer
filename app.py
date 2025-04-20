@@ -74,6 +74,9 @@ with tab1:
             key="contract_upload"
         )
 
+# Add context input field
+context = st.text_area("הקשר נוסף או הערות מיוחדות", height=100)
+
 # Process documents button
 if (payslip_files or contract_files) and st.button("עבד מסמכים", type="primary"):
     try:
@@ -123,7 +126,8 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
-                        type="report"
+                        type="report",
+                        context=context
                     )
                     if result.get('legal_analysis'):
                         st.markdown("### תוצאות ניתוח משפטי")
@@ -137,7 +141,8 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
-                        type="profitability"
+                        type="profitability",
+                        context=context
                     )
                     if result.get('legal_analysis'):
                         st.markdown("### תוצאות ניתוח כדאיות כלכלית")
@@ -152,7 +157,8 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
-                        type="professional"
+                        type="professional",
+                        context=context
                     )
                     if result.get('legal_analysis'):
                         st.markdown("### תוצאות ניתוח מקצועי")
@@ -166,7 +172,8 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
-                        type="warning_letter"
+                        type="warning_letter",
+                        context=context
                     )
                     if result.get('legal_analysis'):
                         st.markdown("### מכתב התראה")

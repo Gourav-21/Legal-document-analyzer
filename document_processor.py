@@ -72,13 +72,13 @@ class DocumentProcessor:
             "contract_text": contract_text
         }
     
-    def create_report(self, payslip_text: str = None, contract_text: str = None, type: str = "report") -> Dict:
+    def create_report(self, payslip_text: str = None, contract_text: str = None, type: str = "report", context: str = None) -> Dict:
         # Prepare documents for analysis
         documents = {}
         if payslip_text:
             documents['payslip'] = payslip_text
         if contract_text:
-            documents['contract'] = contract_text
+            documents['contract'] = contract_textx
             
         # Prepare the prompt for Gemini AI
         # Get formatted labor laws
@@ -91,6 +91,9 @@ LABOR LAWS TO CHECK AGAINST(Your ONLY reference point):
 
 DOCUMENTS PROVIDED FOR ANALYSIS:
 {', '.join(documents.keys())}
+
+ADDITIONAL CONTEXT:
+{context if context else 'No additional context provided.'}
 
 """        
         
@@ -105,9 +108,6 @@ INSTRUCTIONS:
             
         if(type=='report'):    
             prompt += f"""
-INSTRUCTIONS:
-1. If no labor laws are provided, respond with: "אין חוקים לעבודה זמינים לניתוח התאמה." in Hebrew.
-2. If labor laws exist, analyze the documents ONLY against the provided laws.
 3. For each violation found, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
 
 Violation Format Template:

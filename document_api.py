@@ -25,7 +25,8 @@ async def process_documents(
 async def create_report(
     payslip_text: Optional[str] = Body(None),
     contract_text: Optional[str] = Body(None),
-    type: Optional[str] = Body(None)
+    type: Optional[str] = Body(None),
+    context: Optional[str] = Body(None)
 ) -> Dict:
     try:
         if not payslip_text and not contract_text:
@@ -37,7 +38,8 @@ async def create_report(
         result = doc_processor.create_report(
             payslip_text=payslip_text,
             contract_text=contract_text,
-            type=type
+            type=type,
+            context=context
         )
         return result
     except HTTPException as e:
