@@ -78,7 +78,7 @@ class DocumentProcessor:
         if payslip_text:
             documents['payslip'] = payslip_text
         if contract_text:
-            documents['contract'] = contract_textx
+            documents['contract'] = contract_text
             
         # Prepare the prompt for Gemini AI
         # Get formatted labor laws
@@ -108,7 +108,7 @@ INSTRUCTIONS:
             
         if(type=='report'):    
             prompt += f"""
-3. For each violation found, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
+3. For each payslip provided, analyze and identify violations. For each violation found in each payslip, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
 
 Violation Format Template:
 
@@ -128,6 +128,8 @@ Violation Format Template:
 
 Example of correctly formatted violation:
 
+Payslip 1:
+
 Possible Violation of Mandatory Pension Expansion Order
 
 The payslip shows no pension contribution, despite over 6 months of employment.
@@ -145,11 +147,11 @@ It is recommended to review the pension fund details, start date of employment, 
 IMPORTANT:
 - Always Respond in Hebrew
 - Format each violation with proper spacing and line breaks as shown above
+- Analyze each payslip separately and clearly indicate which payslip the violations belong to
 - Separate multiple violations with '---'
-- If no violations are found against the provided laws, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
+- If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר [X]" in hebrew
+- If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
 - Do not include any additional commentary or explanations outside of the violation format"""
-
-
         elif(type=='profitability'):    
             prompt += f"""
 INSTRUCTIONS:
@@ -202,7 +204,7 @@ Provide the analysis in the following format in Hebrew:
 ניתוח מקצועי של הפרות שכר:
 
 פירוט הפרות:
-[For each violation found in the documents, provide:]
+[For each documents find violation, provide:]
 - סוג ההפרה: [Type of violation based on the relevant labor law]
 - פירוט ההפרה: [Detailed description of the violation]
 - חישוב כספי: [Monetary calculation showing the difference between what was paid and what should have been paid]
