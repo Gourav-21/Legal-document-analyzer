@@ -3,6 +3,7 @@ from PIL import Image
 import pytesseract
 import google.generativeai as genai
 import os
+from dotenv import load_dotenv
 import pdfplumber
 from io import BytesIO
 from typing import List, Dict, Union
@@ -13,6 +14,9 @@ from google.cloud import vision
 import io
 from google.cloud.vision import ImageAnnotatorClient
 
+# Load environment variables from .env file
+load_dotenv()
+
 class DocumentProcessor:
     def __init__(self):
         # Initialize Gemini AI
@@ -22,22 +26,28 @@ class DocumentProcessor:
         # Initialize Labor Law Storage
         self.law_storage = LaborLawStorage()
         self.letter_format = LetterFormatStorage()
-        
+
         # Configure Tesseract path
-        tesseract_path = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
-        if not os.path.exists(tesseract_path):
-            raise Exception("Tesseract not found. Please install Tesseract and set TESSERACT_CMD environment variable.")
-        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        # tesseract_path = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+        # if not os.path.exists(tesseract_path):
+        #     raise Exception("Tesseract not found. Please install Tesseract and set TESSERACT_CMD environment variable.")
+        # pytesseract.pytesseract.tesseract_cmd = tesseract_path
+
+        # Configure Tesseract path
+        # tesseract_path = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+        # if not os.path.exists(tesseract_path):
+        #     raise Exception("Tesseract not found. Please install Tesseract and set TESSERACT_CMD environment variable.")
+        # pytesseract.pytesseract.tesseract_cmd = tesseract_path
         
         # Initialize Vision client with API key
         vision_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
         if not vision_api_key:
-            raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_API_KEY environment variable.")
+            raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_in your .env filevariable.")
         
         self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
         self.image_context = {"language_hints": ["he"]} 
 
-        
+
     def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]]):
         if not files:
             raise HTTPException(
