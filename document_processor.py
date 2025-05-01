@@ -266,6 +266,30 @@ Please generate the warning letter in Hebrew with the following guidelines:
 - Format the letter according to the provided template structure
 """
             
+        elif(type=='easy'):
+            prompt += f"""
+[VIOLATION TITLE]
+
+[SIMPLE EXPLANATION OF WHAT THE EMPLOYER MIGHT OWE/DO]
+
+---
+
+Example of correctly formatted violation:
+    
+Your hourly wage appears to be below the legal minimum (32.79 ILS/hour).
+
+You may be entitled to compensation from your employer.
+
+---
+
+
+IMPORTANT:
+- Always Respond in Hebrew
+- Format each violation with proper spacing and line breaks as shown above
+- Separate multiple violations with '---'
+- If no violations are found against the provided laws, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
+- Do not include any additional commentary or explanations outside of the violation format"""
+            
             
         try:
             # Generate analysis using Gemini AI

@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 # from database import Base, engine
