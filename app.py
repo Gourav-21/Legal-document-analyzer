@@ -117,7 +117,7 @@ if (payslip_files or contract_files) and st.button("עבד מסמכים", type="
 
 # Analysis buttons (only shown after processing)
 if st.session_state.processed_result:
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         if st.button("דוח ניתוח משפטי", type="primary", key="report_btn"):
@@ -180,6 +180,23 @@ if st.session_state.processed_result:
                         st.markdown(result['legal_analysis'])
             except Exception as e:
                 st.error(f"שגיאה בהכנת המכתב: {str(e)}")
+    
+    with col3:
+        if st.button("הסבר פשוט", type="primary", key="easy_explanation_btn"):
+            try:
+                with st.spinner("מסביר בפשטות..."):
+                    result = doc_processor.create_report(
+                        st.session_state.processed_result.get('payslip_text'),
+                        st.session_state.processed_result.get('contract_text'),
+                        type="easy",
+                        context=context
+                    )
+                    if result.get('legal_analysis'):
+                        st.markdown("### הסבר פשוט")
+                        st.markdown(result['legal_analysis'])
+            except Exception as e:
+                st.error(f"שגיאה בהסבר: {str(e)}")
+
 # Law Management Tab
 with tab2:
     st.subheader("📚 ניהול חוקי עבודה")
