@@ -9,7 +9,7 @@ from io import BytesIO
 from typing import List, Dict, Union
 from docx import Document
 from labour_law import LaborLawStorage
-from letter_format_api import LetterFormatStorage
+from routers.letter_format_api import LetterFormatStorage
 from google.cloud import vision
 import io
 from google.cloud.vision import ImageAnnotatorClient
@@ -207,41 +207,33 @@ Provide the analysis in the following format:
         elif(type=='professional'):    
             prompt += f"""
 INSTRUCTIONS:
-Analyze the provided documents for wage-related violations based on the provided labor laws and calculate monetary differences.
+Analyze the provided documents for labor law violations based ONLY on the provided labor laws and document content. Calculate monetary differences for each violation.
 
 Provide the analysis in the following format in Hebrew:
 
 ניתוח מקצועי של הפרות שכר:
 
-פירוט הפרות:
-[For each documents find violation, provide:]
-- סוג ההפרה: [Type of violation based on the relevant labor law]
-- פירוט ההפרה: [Detailed description of the violation]
-- חישוב כספי: [Monetary calculation showing the difference between what was paid and what should have been paid]
+הפרה: [VIOLATION TITLE]
+[Detailed description of the violation, including relevant dates, hours, wage rates, and calculations based on the provided laws and documents. Example: The employee worked X overtime hours in [Month Year] through [Month Year]. Based on a base hourly wage of [Wage] ILS and legal overtime rates ([Rate1]% for first X hours, [Rate2]% thereafter), the employee was entitled to [Amount] ILS/month. Received only [Amount Received] ILS for X months and [Amount Received] ILS in [Month].]
+סה"כ חוב: [Total underpaid amount for this specific violation] ILS
 
-חישוב מפורט:
-[For each violation, show:]
-- תעריף נדרש לפי חוק: [Required rate/amount according to law]
-- תעריף/סכום ששולם בפועל: [Actually paid rate/amount]
-- תקופת ההפרה: [Period of violation]
-- חישוב ההפרש: [Calculation of the difference]
+הפרה: [VIOLATION TITLE]
+[Detailed description of the violation, including relevant dates, calculations based on the provided laws and documents. Example: In [Month Year], no pension contribution was made. Employer must contribute [Percentage]% of [Salary] ILS = [Amount] ILS.]
+סה"כ חוב פנסיה: [Total unpaid pension for this specific violation] ILS
 
-אסמכתא משפטית:
-[For each violation:]
-- חוק רלוונטי: [Relevant law from provided laws]
-- סעיף ספציפי: [Specific section]
-- דרישות החוק: [Law requirements]
+---
 
-סיכום:
-- סך הפרשים: [Total differences owed]
-- ריבית והצמדה: [Interest and linkage if applicable]
-- סך כולל: [Grand total]
+סה"כ תביעה משפטית (לא כולל ריבית): [Total combined legal claim amount from all violations] ILS
+אסמכתאות משפטיות: [List relevant law names, e.g., חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
 
 IMPORTANT:
-- Base all calculations only on the provided labor laws
-- Show clear mathematical calculations
-- Reference specific sections of the provided laws
-- Do not include any assumptions not supported by the documents or provided laws
+- Respond ONLY in Hebrew.
+- Base all analysis and calculations STRICTLY on the provided labor laws and document content. Do NOT use external knowledge or make assumptions.
+- Show clear calculations within the violation description where applicable.
+- Calculate the total amount owed for EACH violation separately.
+- Calculate the final TOTAL legal claim by summing up all individual violation amounts.
+- List the names of the relevant laws used as legal references at the end.
+- If no violations are found, respond with: "לא נמצאו הפרות בהתאם לחוקי העבודה והמסמכים שסופקו."
 """
             
         elif(type=='warning_letter'):
@@ -268,27 +260,58 @@ Please generate the warning letter in Hebrew with the following guidelines:
             
         elif(type=='easy'):
             prompt += f"""
-[VIOLATION TITLE]
+**Objective:** Generate a report of potential labor law violations based on provided analysis and calculations. Adhere strictly to the specified format and rules below.
 
-[SIMPLE EXPLANATION OF WHAT THE EMPLOYER MIGHT OWE/DO]
+**Input:** You will be given information identifying potential labor law violations and the corresponding calculated compensation amount (represented by 'X') for each violation found.
 
----
+**Output Instructions:**
 
-Example of correctly formatted violation:
-    
-Your hourly wage appears to be below the legal minimum (32.79 ILS/hour).
+1. **Language:** Respond **exclusively in Hebrew**.
+
+2. **Violation Format:** For each identified violation, structure the output precisely as follows:
+
+[Title of Violation]
+
+[Simple explanation of what the employer may be liable for]
+
+
+* Replace `[Title of Violation]` with the specific title of the violation (e.g., "Lower Wage than Minimum Wage").
+* Replace `[A simple explanation of what the employer may be liable for]` with a simple explanation of the potential obligation (e.g., "You may be entitled to compensation from your employer.").
+* Replace 'X' with the actual calculated compensation amount provided for that violation (e.g., "5,000 NIS"). 
+* Maintain the exact line breaks and spacing shown.
+3. **Multiple Violations:** If more than one violation is found, separate each complete violation block (as formatted above) with a line containing only `---`.
+4. **No Violations:** If the analysis indicates that no violations were found against the specific laws checked, respond **only** with the exact Hebrew phrase: 
+``No violations were found against the provided labor laws.'' 
+* Do not add any other text before or after this phrase if no violations are found.
+5. **Strict Adherence:** Do **not** include any introductory text, concluding remarks, summaries, additional commentary, or any explanations outside of the defined format for each violation or the "no violations" message.
+
+**Example of Correctly Formatted Output for a Single Violation:**
+
+It seems that rent Your hourly rate is less than the legal minimum wage (32.79 NIS per hour).
 
 You may be entitled to compensation from your employer.
 
+According to my calculations, you may be entitled to compensation of 2,345 NIS.
+
+**Example of Correctly Formatted Output for Multiple Violations:**
+
+Failure to pay for overtime as required by law.
+
+You may be entitled to additional payment for hours worked in excess of the daily/weekly quota.
+
+According to my calculations, you may be entitled to compensation of 1,800 NIS.
+
 ---
 
+Dismissal without due process.
 
-IMPORTANT:
-- Always Respond in Hebrew
-- Format each violation with proper spacing and line breaks as shown above
-- Separate multiple violations with '---'
-- If no violations are found against the provided laws, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
-- Do not include any additional commentary or explanations outside of the violation format"""
+Your dismissal may not have been made in accordance with the procedure required by law.
+
+According to my calculations, you may be entitled to compensation of 15,000 NIS.
+
+**Now, process the following violation data and generate the response according to these instructions:**
+
+[Here you would insert the specific violation details and calculated 'X' amounts based on your analysis]"""
             
             
         try:

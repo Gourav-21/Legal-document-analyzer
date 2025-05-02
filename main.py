@@ -2,9 +2,9 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 # from database import Base, engine
 # from routers import auth_router
-from labor_law_api import router as labor_law_router
-from document_api import router as document_router
-from letter_format_api import router as letter_format_router
+from routers.labor_law_api import router as labor_law_router
+from routers.document_api import router as document_router
+from routers.letter_format_api import router as letter_format_router
 # from auth import get_current_user
 from dotenv import load_dotenv
 
