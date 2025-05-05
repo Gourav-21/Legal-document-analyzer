@@ -108,7 +108,7 @@ if (payslip_files or contract_files) and st.button("עבד מסמכים", type="
                     all_doc_types.append("contract")
             
             # Process all documents
-            st.session_state.processed_result = doc_processor.process_document(all_files, all_doc_types)
+            st.session_state.processed_result = doc_processor.process_document(all_files, all_doc_types,True)
             st.success("המסמכים עובדו בהצלחה! כעת תוכל לבחור סוג ניתוח.")
             
     except Exception as e:

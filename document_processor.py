@@ -48,7 +48,7 @@ class DocumentProcessor:
         self.image_context = {"language_hints": ["he"]} 
 
 
-    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]]):
+    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, str]:
         if not files:
             raise HTTPException(
                 status_code=400,
@@ -70,7 +70,7 @@ class DocumentProcessor:
         payslip_counter = 0
         # Process each file based on its type
         for file, doc_type in zip(files, doc_types):
-            extracted_text = self._extract_text2(file.file.read(), file.filename)
+            extracted_text = self._extract_text2(file.file.read(), file.filename, compress=compress)
             if doc_type.lower() == "payslip":
                 payslip_counter += 1
                 payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
@@ -417,7 +417,7 @@ According to my calculations, you may be entitled to compensation of 15,000 NIS.
         
         return output.getvalue()
 
-    def _extract_text2(self, content: bytes, filename: str) -> str:
+    def _extract_text2(self, content: bytes, filename: str, compress: bool = False) -> str:
         if filename.lower().endswith('.pdf'):
             try:
                 pdf_file = BytesIO(content)
@@ -450,7 +450,8 @@ According to my calculations, you may be entitled to compensation of 15,000 NIS.
             text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
         else:
             # Compress image if needed
-            content = self._compress_image(content)
+            if(compress):
+                content = self._compress_image(content)
             vision_image = vision.Image(content=content)
             response = self.vision_client.document_text_detection(image=vision_image,image_context=self.image_context)
             
