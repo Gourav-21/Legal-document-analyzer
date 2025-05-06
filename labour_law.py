@@ -45,4 +45,5 @@ class LaborLawStorage:
         return None
 
     def format_laws_for_prompt(self) -> str:
-        return "\n\n".join(law["text"] for law in self.laws)
+        formatted_laws = [f"{i+1}. {law['text']}" for i, law in enumerate(self.laws)]
+        return "\n\n".join(formatted_laws)

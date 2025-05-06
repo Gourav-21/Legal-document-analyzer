@@ -45,6 +45,10 @@ class JudgementStorage:
             self._save_judgements()
             return True
         return False
+    
+    def format_judgements_for_prompt(self) -> str:
+        formatted_judgements = [f"{i+1}. {judgement['text']}" for i, judgement in enumerate(self.judgements.values())]
+        return "\n\n".join(formatted_judgements)
 
 # Need to import json
 import json

@@ -141,7 +141,7 @@ Violation Format Template:
 
 [LAW REFERENCE AND YEAR]
 
-[RELEVANT JUDGEMENT](Refer to the 'JUDGEMENTS TO CONSIDER' section. If a relevant judgement is found, cite it here. If not, state 'No relevant judgement provided.')
+[SIMILAR CASES OR PRECEDENTS](I request to find a similar legal ruling for this case in israel from any sources, describing RESULT)
 
 [LEGAL IMPLICATIONS]
 
@@ -159,7 +159,7 @@ The payslip shows no pension contribution, despite over 6 months of employment.
 
 According to the Mandatory Pension Expansion Order (2008), an employer is required to contribute to pension after 6 months of continuous employment (or 3 months with prior pension history).
 
-Relevant Judgement: [Name of Judgement from provided list] - [Brief description of how it applies or "No relevant judgement provided."]
+In the [NAME OF RULING] ruling, there was a similar case and the employee won 10,000 thousand shekels there
 
 Lack of contribution may entitle the employee to retroactive compensation or legal action.
 
@@ -178,15 +178,15 @@ IMPORTANT:
         elif(type=='profitability'):    
             prompt += f"""
 INSTRUCTIONS:
-1. Analyze the provided documents and identify potential labor law violations based on the provided LABOR LAWS and JUDGEMENTS.
-2. For each violation, consider ONLY the provided JUDGEMENTS to understand potential outcomes.
-3. If provided judgements suggest cases were unsuccessful:
-   - Explain why the cases were unsuccessful based on the judgement information
+1. Analyze the provided documents and identify potential labor law violations.
+2. For each violation, find similar legal cases and their outcomes (both successful and unsuccessful).
+3. If similar cases were unsuccessful:
+   - Explain why the cases were unsuccessful
    - Provide a clear recommendation against pursuing legal action
    - List potential risks and costs
 
-4. If provided judgements suggest cases were successful, calculate:
-   - Average compensation amount based on successful judgements provided
+4. If similar cases were successful, calculate:
+   - Average compensation amount from successful cases
    - Estimated legal fees (30% of potential compensation)
    - Tax implications (25% of net compensation)
    - Time and effort cost estimation
@@ -198,23 +198,23 @@ Provide the analysis in the following format:
 הפרות שזוהו:
 [List identified violations]
 
-תקדימים משפטיים (מתוך הרשימה שסופקה):
-[Cite relevant judgements from the provided list and their outcomes]
+תקדימים משפטיים:
+[Similar cases with outcomes - both successful and unsuccessful]
 
-במקרה של תקדימים שליליים (מתוך הרשימה שסופקה):
-- סיבות לדחיית התביעות: [REASONS based on provided judgements]
+במקרה של תקדימים שליליים:
+- סיבות לדחיית התביעות: [REASONS]
 - סיכונים אפשריים: [RISKS]
-- המלצה: לא מומלץ להגיש תביעה בשל [EXPLANATION based on provided judgements]
+- המלצה: לא מומלץ להגיש תביעה בשל [EXPLANATION]
 
-במקרה של תקדימים חיוביים (מתוך הרשימה שסופקה):
+במקרה של תקדימים חיוביים:
 ניתוח כספי:
-- סכום פיצוי ממוצע (בהתבסס על תקדימים שסופקו): [AMOUNT] ₪
+- סכום פיצוי ממוצע: [AMOUNT] ₪
 - עלות משוערת של עורך דין (30%): [AMOUNT] ₪
 - השלכות מס (25% מהסכום נטו): [AMOUNT] ₪
 - סכום נטו משוער: [AMOUNT] ₪
 
 המלצה סופית:
-[Based on analysis of provided judgements, provide clear recommendation]
+[Based on analysis of both successful and unsuccessful cases, provide clear recommendation]
 """
             
         elif(type=='professional'):    
@@ -329,12 +329,12 @@ According to my calculations, you may be entitled to compensation of 15,000 NIS.
             
         try:
             # Generate analysis using Gemini AI
-            # response = self.model.generate_content(prompt)
-            # analysis = response.text
+            response = self.model.generate_content(prompt)
+            analysis = response.text
             
             # Structure the result
             result = {
-                "legal_analysis": prompt,
+                "legal_analysis": analysis,
                 "status": "success"
             }
             
