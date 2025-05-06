@@ -106,226 +106,227 @@ class DocumentProcessor:
         
         prompt = f"""You are a legal document analyzer specializing in Israeli labor law compliance based *only* on user-provided information.
 
-LABOR LAWS TO CHECK AGAINST(Your ONLY reference point):
-{labor_laws if labor_laws else 'No labor laws provided for analysis.'}
+    LABOR LAWS TO CHECK AGAINST(Your ONLY reference point):
+    {labor_laws if labor_laws else 'No labor laws provided for analysis.'}
 
-JUDGEMENTS TO CONSIDER (Your ONLY reference point):
-{judgements if judgements else 'No judgements provided for analysis.'}
+    JUDGEMENTS TO CONSIDER (Your ONLY reference point):
+    {judgements if judgements else 'No judgements provided for analysis.'}
 
-DOCUMENTS PROVIDED FOR ANALYSIS:
-{', '.join(documents.keys())}
+    DOCUMENTS PROVIDED FOR ANALYSIS:
+    {', '.join(documents.keys())}
 
-ADDITIONAL CONTEXT:
-{context if context else 'No additional context provided.'}
+    ADDITIONAL CONTEXT:
+    {context if context else 'No additional context provided.'}
 
-"""        
-        
+    """
+
         # Add document contents to prompt
         for doc_type, content in documents.items():
             prompt += f"\n{doc_type.upper()} CONTENT:\n{content}\n"
-            
+
             prompt += f"""
-INSTRUCTIONS:
-1. If no labor laws are provided, respond with: "אין חוקים לעבודה זמינים לניתוח התאמה." in Hebrew.
-2. If labor laws exist, analyze the documents ONLY against the provided laws."""
-            
-        if(type=='report'):    
+    INSTRUCTIONS:
+    1. If no labor laws are provided, respond with: "אין חוקים לעבודה זמינים לניתוח התאמה." in Hebrew.
+    2. If labor laws exist, analyze the documents ONLY against the provided laws.
+    3. ONLY refer to the judgements and their results provided above for legal analysis - do not use external cases or knowledge.
+    4. If no judgements are provided, respond with: "לא קיימות החלטות משפטיות זמינות לניתוח." in Hebrew."""
+
+        if(type=='report'):
             prompt += f"""
-3. For each payslip provided, analyze and identify violations. For each violation found in each payslip, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
+    3. For each payslip provided, analyze and identify violations. For each violation found in each payslip, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
 
-Violation Format Template:
+    Violation Format Template:
 
-[VIOLATION TITLE]
+    [VIOLATION TITLE]
 
-[SPECIFIC VIOLATION DETAILS]
+    [SPECIFIC VIOLATION DETAILS]
 
-[LAW REFERENCE AND YEAR]
+    [LAW REFERENCE AND YEAR FROM PROVIDED LAWS]
 
-[SIMILAR CASES OR PRECEDENTS](I request to find a similar legal ruling for this case in israel from any sources, describing RESULT)
+    [SIMILAR CASES OR PRECEDENTS FROM PROVIDED JUDGEMENTS](Refer *only* to the 'JUDGEMENTS TO CONSIDER' section provided earlier. If a relevant judgement is found among those provided, describe the case and its result. If no relevant judgement is found, state "לא נמצאו תקדימים רלוונטיים בפסקי הדין שסופקו.")
 
-[LEGAL IMPLICATIONS]
+    [LEGAL IMPLICATIONS BASED ON PROVIDED INFORMATION]
 
-[RECOMMENDED ACTIONS]
+    [RECOMMENDED ACTIONS]
 
----
+    ---
 
-Example of correctly formatted violation:
+    Example of correctly formatted violation:
 
-Payslip 1:
+    Payslip 1:
 
-Possible Violation of Mandatory Pension Expansion Order
+    Possible Violation of Mandatory Pension Expansion Order
 
-The payslip shows no pension contribution, despite over 6 months of employment.
+    The payslip shows no pension contribution, despite over 6 months of employment.
 
-According to the Mandatory Pension Expansion Order (2008), an employer is required to contribute to pension after 6 months of continuous employment (or 3 months with prior pension history).
+    According to the Mandatory Pension Expansion Order (2008) (assuming this law was provided).
 
-In the [NAME OF RULING] ruling, there was a similar case and the employee won 10,000 thousand shekels there
+    In the [NAME OF RULING FROM PROVIDED JUDGEMENTS] ruling, there was a similar case and the employee won 10,000 thousand shekels there (assuming this judgement was provided).
 
-Lack of contribution may entitle the employee to retroactive compensation or legal action.
+    Lack of contribution may entitle the employee to retroactive compensation or legal action.
 
-It is recommended to review the pension fund details, start date of employment, and contract terms.
+    It is recommended to review the pension fund details, start date of employment, and contract terms.
 
----
+    ---
 
-IMPORTANT:
-- Always Respond in Hebrew
-- Format each violation with proper spacing and line breaks as shown above
-- Analyze each payslip separately and clearly indicate which payslip the violations belong to
-- Separate multiple violations with '---'
-- If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר [X]" in hebrew
-- If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
-- Do not include any additional commentary or explanations outside of the violation format"""
-        elif(type=='profitability'):    
+    IMPORTANT:
+    - Always Respond in Hebrew
+    - Format each violation with proper spacing and line breaks as shown above
+    - Analyze each payslip separately and clearly indicate which payslip the violations belong to
+    - Separate multiple violations with '---'
+    - If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר [X]" in hebrew
+    - If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
+    - Do not include any additional commentary or explanations outside of the violation format"""
+        elif(type=='profitability'):
             prompt += f"""
-INSTRUCTIONS:
-1. Analyze the provided documents and identify potential labor law violations.
-2. For each violation, find similar legal cases and their outcomes (both successful and unsuccessful).
-3. If similar cases were unsuccessful:
-   - Explain why the cases were unsuccessful
-   - Provide a clear recommendation against pursuing legal action
-   - List potential risks and costs
+    INSTRUCTIONS:
+    1. Analyze the provided documents and identify potential labor law violations, based *exclusively on the LABOR LAWS and JUDGEMENTS provided above*.
+    2. For each violation, refer *only* to the `JUDGEMENTS TO CONSIDER` (provided earlier in the main prompt) to identify similar legal cases and their outcomes (both successful and unsuccessful). Do not use external sources or knowledge for this.
+    3. If similar cases (from the provided judgements) were unsuccessful:
+       - Explain why the cases were unsuccessful based on the provided judgement information.
+       - Provide a clear recommendation against pursuing legal action based on this.
+       - List potential risks and costs.
 
-4. If similar cases were successful, calculate:
-   - Average compensation amount from successful cases
-   - Estimated legal fees (30% of potential compensation)
-   - Tax implications (25% of net compensation)
-   - Time and effort cost estimation
+    4. If similar cases (from the provided judgements) were successful, calculate using information from those judgements if available:
+       - Average compensation amount from successful provided cases.
+       - Estimated legal fees (30% of potential compensation).
+       - Tax implications (25% of net compensation).
+       - Time and effort cost estimation.
 
-Provide the analysis in the following format:
+    Provide the analysis in the following format:
 
-ניתוח כדאיות כלכלית:
+    ניתוח כדאיות כלכלית:
 
-הפרות שזוהו:
-[List identified violations]
+    הפרות שזוהו (על בסיס החוקים שסופקו):
+    [List identified violations]
 
-תקדימים משפטיים:
-[Similar cases with outcomes - both successful and unsuccessful]
+    תקדימים משפטיים (מתוך פסקי הדין שסופקו):
+    [Similar cases from provided judgements with outcomes - both successful and unsuccessful]
 
-במקרה של תקדימים שליליים:
-- סיבות לדחיית התביעות: [REASONS]
-- סיכונים אפשריים: [RISKS]
-- המלצה: לא מומלץ להגיש תביעה בשל [EXPLANATION]
+    במקרה של תקדימים שליליים (מתוך פסקי הדין שסופקו):
+    - סיבות לדחיית התביעות: [REASONS BASED ON PROVIDED JUDGEMENTS]
+    - סיכונים אפשריים: [RISKS]
+    - המלצה: לא מומלץ להגיש תביעה בשל [EXPLANATION BASED ON PROVIDED JUDGEMENTS]
 
-במקרה של תקדימים חיוביים:
-ניתוח כספי:
-- סכום פיצוי ממוצע: [AMOUNT] ₪
-- עלות משוערת של עורך דין (30%): [AMOUNT] ₪
-- השלכות מס (25% מהסכום נטו): [AMOUNT] ₪
-- סכום נטו משוער: [AMOUNT] ₪
+    במקרה של תקדימים חיוביים (מתוך פסקי הדין שסופקו):
+    ניתוח כספי:
+    - סכום פיצוי ממוצע (מפסיקות דין שסופקו): [AMOUNT] ₪
+    - עלות משוערת של עורך דין (30%): [AMOUNT] ₪
+    - השלכות מס (25% מהסכום נטו): [AMOUNT] ₪
+    - סכום נטו משוער: [AMOUNT] ₪
 
-המלצה סופית:
-[Based on analysis of both successful and unsuccessful cases, provide clear recommendation]
-"""
-            
-        elif(type=='professional'):    
+    המלצה סופית:
+    [Based on analysis of both successful and unsuccessful cases from the provided judgements, provide clear recommendation]
+    """
+
+        elif(type=='professional'):
             prompt += f"""
-INSTRUCTIONS:
-Analyze the provided documents for labor law violations based ONLY on the provided labor laws and document content. Calculate monetary differences for each violation.
+    INSTRUCTIONS:
+    Analyze the provided documents for labor law violations based ONLY on the provided labor laws and document content. Calculate monetary differences for each violation using ONLY the provided laws.
 
-Provide the analysis in the following format in Hebrew:
+    Provide the analysis in the following format in Hebrew:
 
-ניתוח מקצועי של הפרות שכר:
+    ניתוח מקצועי של הפרות שכר:
 
-הפרה: [VIOLATION TITLE]
-[Detailed description of the violation, including relevant dates, hours, wage rates, and calculations based on the provided laws and documents. Example: The employee worked X overtime hours in [Month Year] through [Month Year]. Based on a base hourly wage of [Wage] ILS and legal overtime rates ([Rate1]% for first X hours, [Rate2]% thereafter), the employee was entitled to [Amount] ILS/month. Received only [Amount Received] ILS for X months and [Amount Received] ILS in [Month].]
-סה"כ חוב: [Total underpaid amount for this specific violation] ILS
+    הפרה: [VIOLATION TITLE]
+    [Detailed description of the violation, including relevant dates, hours, wage rates, and calculations based *strictly on the provided laws and documents*. Example: The employee worked X overtime hours in [Month Year] through [Month Year]. Based on a base hourly wage of [Wage] ILS and legal overtime rates ([Rate1]% for first X hours, [Rate2]% thereafter) *as specified in the provided labor laws*, the employee was entitled to [Amount] ILS/month. Received only [Amount Received] ILS for X months and [Amount Received] ILS in [Month].]
+    סה"כ חוב: [Total underpaid amount for this specific violation] ILS
 
-הפרה: [VIOLATION TITLE]
-[Detailed description of the violation, including relevant dates, calculations based on the provided laws and documents. Example: In [Month Year], no pension contribution was made. Employer must contribute [Percentage]% of [Salary] ILS = [Amount] ILS.]
-סה"כ חוב פנסיה: [Total unpaid pension for this specific violation] ILS
+    הפרה: [VIOLATION TITLE]
+    [Detailed description of the violation, including relevant dates, calculations based *strictly on the provided laws and documents*. Example: In [Month Year], no pension contribution was made. Employer must contribute [Percentage]% of [Salary] ILS = [Amount] ILS *as per the provided pension law/order*.]
+    סה"כ חוב פנסיה: [Total unpaid pension for this specific violation] ILS
 
----
+    ---
 
-סה"כ תביעה משפטית (לא כולל ריבית): [Total combined legal claim amount from all violations] ILS
-אסמכתאות משפטיות: [List relevant law names, e.g., חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
+    סה"כ תביעה משפטית (לא כולל ריבית): [Total combined legal claim amount from all violations] ILS
+    אסמכתאות משפטיות: [List relevant law names *from the 'LABOR LAWS TO CHECK AGAINST' section provided earlier*, e.g., חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
 
-IMPORTANT:
-- Respond ONLY in Hebrew.
-- Base all analysis and calculations STRICTLY on the provided labor laws and document content. Do NOT use external knowledge or make assumptions.
-- Show clear calculations within the violation description where applicable.
-- Calculate the total amount owed for EACH violation separately.
-- Calculate the final TOTAL legal claim by summing up all individual violation amounts.
-- List the names of the relevant laws used as legal references at the end.
-- If no violations are found, respond with: "לא נמצאו הפרות בהתאם לחוקי העבודה והמסמכים שסופקו."
-"""
-            
+    IMPORTANT:
+    - Respond ONLY in Hebrew.
+    - Base all analysis and calculations STRICTLY on the provided labor laws and document content. Do NOT use external knowledge or make assumptions.
+    - Show clear calculations within the violation description where applicable.
+    - Calculate the total amount owed for EACH violation separately.
+    - Calculate the final TOTAL legal claim by summing up all individual violation amounts.
+    - List the names of the relevant laws used (from those provided) as legal references at the end.
+    - If no violations are found, respond with: "לא נמצאו הפרות בהתאם לחוקי העבודה והמסמכים שסופקו."
+    """
+
         elif(type=='warning_letter'):
-            format=self.letter_format.get_format()
+            format_content = self.letter_format.get_format().get('content', '')
             prompt += f"""
-INSTRUCTIONS:
-1. Analyze the provided documents for labor law violations.
-2. If violations are found, generate a formal warning letter using the provided template.
-3. If no violations are found, respond with: "לא נמצאו הפרות המצדיקות מכתב התראה." in Hebrew.
+    INSTRUCTIONS:
+    1. Analyze the provided documents for labor law violations *based exclusively on the LABOR LAWS and JUDGEMENTS provided above*.
+    2. If violations are found, generate a formal warning letter using the provided template.
+    3. If no violations are found, respond with: "לא נמצאו הפרות המצדיקות מכתב התראה." in Hebrew.
 
-Warning Letter Template:
-{format.get('content', '')}
+    Warning Letter Template:
+    {format_content}
 
-Please generate the warning letter in Hebrew with the following guidelines:
-- Replace [EMPLOYER_NAME] with the employer's name from the documents
-- Replace [VIOLATION_DETAILS] with specific details of each violation found
-- Replace [LAW_REFERENCES] with relevant labor law citations
-- Replace [REQUIRED_ACTIONS] with clear corrective actions needed
-- Replace [DEADLINE] with a reasonable timeframe for corrections (typically 14 days)
-- Maintain a professional and formal tone throughout
-- Include all violations found in the analysis
-- Format the letter according to the provided template structure
-"""
-            
+    Please generate the warning letter in Hebrew with the following guidelines:
+    - Replace [EMPLOYER_NAME] with the employer's name from the documents
+    - Replace [VIOLATION_DETAILS] with specific details of each violation found (based on provided laws)
+    - Replace [LAW_REFERENCES] with relevant labor law citations *from the 'LABOR LAWS TO CHECK AGAINST' section provided earlier*.
+    - Replace [REQUIRED_ACTIONS] with clear corrective actions needed
+    - Replace [DEADLINE] with a reasonable timeframe for corrections (typically 14 days)
+    - Maintain a professional and formal tone throughout
+    - Include all violations found in the analysis (based on provided laws)
+    - Format the letter according to the provided template structure
+    """
+
         elif(type=='easy'):
             prompt += f"""
-**Objective:** Generate a report of potential labor law violations based on provided analysis and calculations. Adhere strictly to the specified format and rules below.
+    **Objective:** Generate a report of potential labor law violations based on provided analysis and calculations. This analysis and these calculations *must be based strictly on the LABOR LAWS and JUDGEMENTS provided in the initial sections of this prompt*. Adhere strictly to the specified format and rules below.
 
-**Input:** You will be given information identifying potential labor law violations and the corresponding calculated compensation amount (represented by 'X') for each violation found.
+    **Input:** You will be given information identifying potential labor law violations (derived *only* from provided laws/judgements) and the corresponding calculated compensation amount (represented by 'X') for each violation found.
 
-**Output Instructions:**
+    **Output Instructions:**
 
-1. **Language:** Respond **exclusively in Hebrew**.
+    1. **Language:** Respond **exclusively in Hebrew**.
 
-2. **Violation Format:** For each identified violation, structure the output precisely as follows:
+    2. **Violation Format:** For each identified violation, structure the output precisely as follows:
 
-[Title of Violation]
+    [Title of Violation]
 
-[Simple explanation of what the employer may be liable for]
+    [Simple explanation of what the employer may be liable for, based on provided laws]
 
 
-* Replace `[Title of Violation]` with the specific title of the violation (e.g., "Lower Wage than Minimum Wage").
-* Replace `[A simple explanation of what the employer may be liable for]` with a simple explanation of the potential obligation (e.g., "You may be entitled to compensation from your employer.").
-* Replace 'X' with the actual calculated compensation amount provided for that violation (e.g., "5,000 NIS"). 
-* Maintain the exact line breaks and spacing shown.
-3. **Multiple Violations:** If more than one violation is found, separate each complete violation block (as formatted above) with a line containing only `---`.
-4. **No Violations:** If the analysis indicates that no violations were found against the specific laws checked, respond **only** with the exact Hebrew phrase: 
-``No violations were found against the provided labor laws.'' 
-* Do not add any other text before or after this phrase if no violations are found.
-5. **Strict Adherence:** Do **not** include any introductory text, concluding remarks, summaries, additional commentary, or any explanations outside of the defined format for each violation or the "no violations" message.
+    * Replace `[Title of Violation]` with the specific title of the violation (e.g., "Lower Wage than Minimum Wage" - if minimum wage law was provided).
+    * Replace `[Simple explanation of what the employer may be liable for]` with a simple explanation of the potential obligation (e.g., "You may be entitled to compensation from your employer.").
+    * Replace 'X' with the actual calculated compensation amount provided for that violation (e.g., "5,000 NIS").
+    * Maintain the exact line breaks and spacing shown.
+    3. **Multiple Violations:** If more than one violation is found, separate each complete violation block (as formatted above) with a line containing only `---`.
+    4. **No Violations:** If the analysis indicates that no violations were found against the specific laws checked, respond **only** with the exact Hebrew phrase:
+    ``No violations were found against the provided labor laws.''
+    * Do not add any other text before or after this phrase if no violations are found.
+    5. **Strict Adherence:** Do **not** include any introductory text, concluding remarks, summaries, additional commentary, or any explanations outside of the defined format for each violation or the "no violations" message.
 
-**Example of Correctly Formatted Output for a Single Violation:**
+    **Example of Correctly Formatted Output for a Single Violation (assuming relevant laws were provided for this analysis):**
 
-It seems that rent Your hourly rate is less than the legal minimum wage (32.79 NIS per hour).
+    It seems that your hourly rate is less than the legal minimum wage (e.g., 32.79 NIS per hour, if this figure was in the provided laws).
 
-You may be entitled to compensation from your employer.
+    You may be entitled to compensation from your employer.
 
-According to my calculations, you may be entitled to compensation of 2,345 NIS.
+    According to my calculations, you may be entitled to compensation of 2,345 NIS.
 
-**Example of Correctly Formatted Output for Multiple Violations:**
+    **Example of Correctly Formatted Output for Multiple Violations (assuming relevant laws were provided for this analysis):**
 
-Failure to pay for overtime as required by law.
+    Failure to pay for overtime as required by law.
 
-You may be entitled to additional payment for hours worked in excess of the daily/weekly quota.
+    You may be entitled to additional payment for hours worked in excess of the daily/weekly quota.
 
-According to my calculations, you may be entitled to compensation of 1,800 NIS.
+    According to my calculations, you may be entitled to compensation of 1,800 NIS.
 
----
+    ---
 
-Dismissal without due process.
+    Dismissal without due process.
 
-Your dismissal may not have been made in accordance with the procedure required by law.
+    Your dismissal may not have been made in accordance with the procedure required by law.
 
-According to my calculations, you may be entitled to compensation of 15,000 NIS.
+    According to my calculations, you may be entitled to compensation of 15,000 NIS.
 
-**Now, process the following violation data and generate the response according to these instructions:**
+    **Now, process the following violation data (which was derived strictly from the provided labor laws and judgements) and generate the response according to these instructions:**
 
-[Here you would insert the specific violation details and calculated 'X' amounts based on your analysis]"""
-            
+    [Here you would insert the specific violation details and calculated 'X' amounts based on your analysis]"""
             
         try:
             # Generate analysis using Gemini AI
