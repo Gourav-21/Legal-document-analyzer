@@ -10,6 +10,7 @@ from typing import List, Dict, Union
 from docx import Document
 from labour_law import LaborLawStorage
 from routers.letter_format_api import LetterFormatStorage
+from judgement import JudgementStorage
 from google.cloud import vision
 import io
 from google.cloud.vision import ImageAnnotatorClient
@@ -26,6 +27,7 @@ class DocumentProcessor:
         # Initialize Labor Law Storage
         self.law_storage = LaborLawStorage()
         self.letter_format = LetterFormatStorage()
+        self.judgement_storage = JudgementStorage()
 
         # Configure Tesseract path
         # tesseract_path = os.getenv("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
@@ -65,6 +67,7 @@ class DocumentProcessor:
         # Initialize text storage
         payslip_text = None
         contract_text = None
+        attendance_text = None
         
         # Initialize payslip counter
         payslip_counter = 0
@@ -76,28 +79,38 @@ class DocumentProcessor:
                 payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
             elif doc_type.lower() == "contract":
                 contract_text = extracted_text
+            elif doc_type.lower() == "attendance":
+                attendance_text = extracted_text
         # Return the extracted texts
         return {
             "payslip_text": payslip_text,
-            "contract_text": contract_text
+            "contract_text": contract_text,
+            "attendance_text": attendance_text
         }
     
-    def create_report(self, payslip_text: str = None, contract_text: str = None, type: str = "report", context: str = None) -> Dict:
+    def create_report(self, payslip_text: str = None, contract_text: str = None, attendance_text: str = None, type: str = "report", context: str = None) -> Dict:
         # Prepare documents for analysis
         documents = {}
         if payslip_text:
             documents['payslip'] = payslip_text
         if contract_text:
             documents['contract'] = contract_text
+        if attendance_text:
+            documents['attendance report'] = attendance_text
             
         # Prepare the prompt for Gemini AI
         # Get formatted labor laws
         labor_laws = self.law_storage.format_laws_for_prompt()
+        # Get formatted judgements
+        judgements = self.judgement_storage.format_judgements_for_prompt()
         
         prompt = f"""You are a legal document analyzer specializing in Israeli labor law compliance based *only* on user-provided information.
 
 LABOR LAWS TO CHECK AGAINST(Your ONLY reference point):
 {labor_laws if labor_laws else 'No labor laws provided for analysis.'}
+
+JUDGEMENTS TO CONSIDER (Your ONLY reference point):
+{judgements if judgements else 'No judgements provided for analysis.'}
 
 DOCUMENTS PROVIDED FOR ANALYSIS:
 {', '.join(documents.keys())}
@@ -128,7 +141,7 @@ Violation Format Template:
 
 [LAW REFERENCE AND YEAR]
 
-[SIMILAR CASES OR PRECEDENTS](I request to find a similar legal ruling for this case in israel from any sources, describing RESULT)
+[RELEVANT JUDGEMENT](Refer to the 'JUDGEMENTS TO CONSIDER' section. If a relevant judgement is found, cite it here. If not, state 'No relevant judgement provided.')
 
 [LEGAL IMPLICATIONS]
 
@@ -146,7 +159,7 @@ The payslip shows no pension contribution, despite over 6 months of employment.
 
 According to the Mandatory Pension Expansion Order (2008), an employer is required to contribute to pension after 6 months of continuous employment (or 3 months with prior pension history).
 
-In the [NAME OF RULING] ruling, there was a similar case and the employee won 10,000 thousand shekels there
+Relevant Judgement: [Name of Judgement from provided list] - [Brief description of how it applies or "No relevant judgement provided."]
 
 Lack of contribution may entitle the employee to retroactive compensation or legal action.
 
@@ -165,15 +178,15 @@ IMPORTANT:
         elif(type=='profitability'):    
             prompt += f"""
 INSTRUCTIONS:
-1. Analyze the provided documents and identify potential labor law violations.
-2. For each violation, find similar legal cases and their outcomes (both successful and unsuccessful).
-3. If similar cases were unsuccessful:
-   - Explain why the cases were unsuccessful
+1. Analyze the provided documents and identify potential labor law violations based on the provided LABOR LAWS and JUDGEMENTS.
+2. For each violation, consider ONLY the provided JUDGEMENTS to understand potential outcomes.
+3. If provided judgements suggest cases were unsuccessful:
+   - Explain why the cases were unsuccessful based on the judgement information
    - Provide a clear recommendation against pursuing legal action
    - List potential risks and costs
 
-4. If similar cases were successful, calculate:
-   - Average compensation amount from successful cases
+4. If provided judgements suggest cases were successful, calculate:
+   - Average compensation amount based on successful judgements provided
    - Estimated legal fees (30% of potential compensation)
    - Tax implications (25% of net compensation)
    - Time and effort cost estimation
@@ -185,23 +198,23 @@ Provide the analysis in the following format:
 הפרות שזוהו:
 [List identified violations]
 
-תקדימים משפטיים:
-[Similar cases with outcomes - both successful and unsuccessful]
+תקדימים משפטיים (מתוך הרשימה שסופקה):
+[Cite relevant judgements from the provided list and their outcomes]
 
-במקרה של תקדימים שליליים:
-- סיבות לדחיית התביעות: [REASONS]
+במקרה של תקדימים שליליים (מתוך הרשימה שסופקה):
+- סיבות לדחיית התביעות: [REASONS based on provided judgements]
 - סיכונים אפשריים: [RISKS]
-- המלצה: לא מומלץ להגיש תביעה בשל [EXPLANATION]
+- המלצה: לא מומלץ להגיש תביעה בשל [EXPLANATION based on provided judgements]
 
-במקרה של תקדימים חיוביים:
+במקרה של תקדימים חיוביים (מתוך הרשימה שסופקה):
 ניתוח כספי:
-- סכום פיצוי ממוצע: [AMOUNT] ₪
+- סכום פיצוי ממוצע (בהתבסס על תקדימים שסופקו): [AMOUNT] ₪
 - עלות משוערת של עורך דין (30%): [AMOUNT] ₪
 - השלכות מס (25% מהסכום נטו): [AMOUNT] ₪
 - סכום נטו משוער: [AMOUNT] ₪
 
 המלצה סופית:
-[Based on analysis of both successful and unsuccessful cases, provide clear recommendation]
+[Based on analysis of provided judgements, provide clear recommendation]
 """
             
         elif(type=='professional'):    
@@ -316,12 +329,12 @@ According to my calculations, you may be entitled to compensation of 15,000 NIS.
             
         try:
             # Generate analysis using Gemini AI
-            response = self.model.generate_content(prompt)
-            analysis = response.text
+            # response = self.model.generate_content(prompt)
+            # analysis = response.text
             
             # Structure the result
             result = {
-                "legal_analysis": analysis,
+                "legal_analysis": prompt,
                 "status": "success"
             }
             
