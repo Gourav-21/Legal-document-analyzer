@@ -49,12 +49,12 @@ st.title("📄 מנתח מסמכים משפטיים")
 st.markdown("העלה את המסמכים המשפטיים שלך לבדיקת תאימות לחוקי העבודה הישראליים.")
 
 # Create tabs
-tab1, tab2, tab3 = st.tabs(["📄 ניתוח מסמכים", "📚 ניהול חוקים", "📝 ניהול תבנית"])
+tab1, tab2, tab3, tab4 = st.tabs(["📄 ניתוח מסמכים", "📚 ניהול חוקים", "📝 ניהול תבנית", "⚖️ ניהול פסקי דין"])
 
 # Document Analysis Tab
 with tab1:
     # Create document upload sections
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.subheader("📄 תלושי שכר")
@@ -73,12 +73,21 @@ with tab1:
             accept_multiple_files=True,
             key="contract_upload"
         )
+    
+    with col3:
+        st.subheader("⏰ דוחות נוכחות")
+        attendance_files = st.file_uploader(
+            "העלה דוחות נוכחות",
+            type=["pdf", "png", "jpg", "jpeg", 'webp', 'docx'],
+            accept_multiple_files=True,
+            key="attendance_upload"
+        )
 
 # Add context input field
 context = st.text_area("הקשר נוסף או הערות מיוחדות", height=100)
 
 # Process documents button
-if (payslip_files or contract_files) and st.button("עבד מסמכים", type="primary"):
+if (payslip_files or contract_files or attendance_files) and st.button("עבד מסמכים", type="primary"):
     try:
         with st.spinner("מעבד מסמכים..."):
             # Process documents
@@ -106,6 +115,17 @@ if (payslip_files or contract_files) and st.button("עבד מסמכים", type="
                     )
                     all_files.append(fastapi_file)
                     all_doc_types.append("contract")
+
+            # Add attendance files
+            if attendance_files:
+                for file in attendance_files:
+                    file_content = file.read()
+                    fastapi_file = UploadFile(
+                        filename=file.name,
+                        file=BytesIO(file_content)
+                    )
+                    all_files.append(fastapi_file)
+                    all_doc_types.append("attendance")
             
             # Process all documents
             st.session_state.processed_result = doc_processor.process_document(all_files, all_doc_types,True)
@@ -126,6 +146,7 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
+                        st.session_state.processed_result.get('attendance_text'),
                         type="report",
                         context=context
                     )
@@ -141,6 +162,7 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
+                        st.session_state.processed_result.get('attendance_text'),
                         type="profitability",
                         context=context
                     )
@@ -157,6 +179,7 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
+                        st.session_state.processed_result.get('attendance_text'),
                         type="professional",
                         context=context
                     )
@@ -172,6 +195,7 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
+                        st.session_state.processed_result.get('attendance_text'),
                         type="warning_letter",
                         context=context
                     )
@@ -188,6 +212,7 @@ if st.session_state.processed_result:
                     result = doc_processor.create_report(
                         st.session_state.processed_result.get('payslip_text'),
                         st.session_state.processed_result.get('contract_text'),
+                        st.session_state.processed_result.get('attendance_text'),
                         type="easy",
                         context=context
                     )
@@ -288,6 +313,95 @@ with tab3:
             st.success("תבנית המכתב נשמרה בהצלחה!")
         except Exception as e:
             st.error(f"שגיאה בשמירת התבנית: {str(e)}")
+
+# Judgement Management Tab
+with tab4:
+    st.subheader("⚖️ ניהול פסקי דין")
+
+    # Add new judgement section
+    with st.expander("הוסף פסק דין חדש", expanded=False):
+        new_judgement_text = st.text_area("הכנס טקסט של פסק דין חדש", height=150, key="new_judgement_text_area")
+        if st.button("הוסף פסק דין", type="primary", key="add_judgement_button"):
+            if new_judgement_text.strip():
+                try:
+                    # Assuming doc_processor has a judgement_storage attribute
+                    doc_processor.judgement_storage.add_judgement(new_judgement_text)
+                    st.success("פסק הדין נוסף בהצלחה!")
+                    # Clear the text area after adding
+                    # st.session_state.new_judgement_text_area = "" 
+                    # st.rerun()
+                except AttributeError:
+                    st.error("שגיאה: judgement_storage אינו מוגדר ב-doc_processor.")
+                except Exception as e:
+                    st.error(f"שגיאה בהוספת פסק הדין: {str(e)}")
+            else:
+                st.warning("אנא הכנס טקסט של פסק דין לפני הוספה.")
+
+    # Display existing judgements
+    st.subheader("פסקי דין קיימים")
+    try:
+        # Assuming doc_processor has a judgement_storage attribute
+        existing_judgements = doc_processor.judgement_storage.get_all_judgements()
+
+        if not existing_judgements:
+            st.info("טרם נוספו פסקי דין.")
+        else:
+            for judgement in existing_judgements:
+                judgement_id = judgement['id']
+                if f"editing_judgement_{judgement_id}" not in st.session_state:
+                    st.session_state[f"editing_judgement_{judgement_id}"] = False
+                    st.session_state[f"edited_judgement_text_{judgement_id}"] = judgement["text"]
+                
+                if st.session_state[f"editing_judgement_{judgement_id}"]:
+                    edited_text = st.text_area(
+                        "ערוך טקסט פסק דין",
+                        value=st.session_state[f"edited_judgement_text_{judgement_id}"],
+                        height=100,
+                        key=f"edit_judgement_text_area_{judgement_id}"
+                    )
+                    if st.button("שמור שינויים", key=f"save_judgement_{judgement_id}"):
+                        try:
+                            doc_processor.judgement_storage.update_judgement(judgement_id, edited_text)
+                            st.session_state[f"editing_judgement_{judgement_id}"] = False
+                            st.success("פסק הדין עודכן בהצלחה!")
+                            st.rerun()
+                        except AttributeError:
+                            st.error("שגיאה: judgement_storage אינו מוגדר ב-doc_processor.")
+                        except Exception as e:
+                            st.error(f"שגיאה בעדכון פסק הדין: {str(e)}")
+                else:
+                    st.text_area(
+                        "טקסט פסק הדין",
+                        value=judgement["text"],
+                        height=100,
+                        key=f"display_judgement_text_area_{judgement_id}",
+                        disabled=True
+                    )
+                    
+                # Action buttons below text area
+                judgement_button_cols = st.columns([1, 1])
+                with judgement_button_cols[0]:
+                    if not st.session_state[f"editing_judgement_{judgement_id}"]:
+                        if st.button("✏️ ערוך פסק דין", key=f"edit_judgement_button_{judgement_id}", use_container_width=True):
+                            st.session_state[f"editing_judgement_{judgement_id}"] = True
+                            st.session_state[f"edited_judgement_text_{judgement_id}"] = judgement["text"]
+                            st.rerun()
+                with judgement_button_cols[1]:
+                    if st.button("🗑️ מחק פסק דין", key=f"delete_judgement_button_{judgement_id}", use_container_width=True):
+                        try:
+                            if doc_processor.judgement_storage.delete_judgement(judgement_id):
+                                st.success("פסק הדין נמחק בהצלחה!")
+                                st.rerun()
+                            else:
+                                st.error("שגיאה במחיקת פסק הדין.")
+                        except AttributeError:
+                            st.error("שגיאה: judgement_storage אינו מוגדר ב-doc_processor.")
+                        except Exception as e:
+                            st.error(f"שגיאה במחיקת פסק הדין: {str(e)}")
+    except AttributeError:
+        st.error("לא ניתן לטעון פסקי דין: judgement_storage אינו מוגדר ב-doc_processor.")
+    except Exception as e:
+        st.error(f"שגיאה בטעינת פסקי דין: {str(e)}")
 
 # Add footer
 st.markdown("---")
