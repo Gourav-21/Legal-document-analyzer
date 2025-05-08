@@ -14,6 +14,7 @@ from routers.letter_format_api import LetterFormatStorage
 from google.cloud import vision
 import io
 from google.cloud.vision import ImageAnnotatorClient
+import pandas as pd
 
 # Load environment variables from .env file
 load_dotenv()
@@ -302,12 +303,12 @@ class DocumentProcessor:
     [Here you would insert the specific violation details and calculated 'X' amounts based on your analysis]"""
             
         try:
-            gemini_api_key = os.environ.get("GEMINI_API_KEY")
+            gemini_api_key = os.environ.get("GOOGLE_CLOUD_VISION_API_KEY")
             if not gemini_api_key:
                 raise ValueError("GEMINI_API_KEY not found in environment variables.")
 
             client = genai.Client(api_key=gemini_api_key)
-            model_name = "gemini-2.5-flash-preview-04-17"
+            model_name = "gemini-2.5-pro-preview-05-06"
             
             api_contents = [
                 types.Content(
@@ -437,7 +438,7 @@ class DocumentProcessor:
                             img_content = img_byte_arr.getvalue()
                             
                             vision_image = vision.Image(content=img_content)
-                            response = self.vision_client.text_detection(image=vision_image,image_context=self.image_context)
+                            response = self.vision_client.text_detection(image=vision_image, image_context=self.image_context)
                             if response.text_annotations:
                                 text_list = [text_annotation.description for text_annotation in response.text_annotations]
                                 text += " ".join(text_list) + "\n"
@@ -450,12 +451,28 @@ class DocumentProcessor:
             doc_file = BytesIO(content)
             doc = Document(doc_file)
             text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+        elif filename.lower().endswith('.xlsx'):
+            try:
+                # Load Excel file into a pandas DataFrame
+                excel_file = BytesIO(content)
+                df = pd.read_excel(excel_file, sheet_name=None)  # Load all sheets
+                
+                # Extract text from all sheets
+                text = ""
+                for sheet_name, sheet_data in df.items():
+                    text += f"Sheet: {sheet_name}\n"
+                    text += sheet_data.to_string(index=False) + "\n\n"
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error processing Excel file: {str(e)}"
+                )
         else:
             # Compress image if needed
-            if(compress):
+            if compress:
                 content = self._compress_image(content)
             vision_image = vision.Image(content=content)
-            response = self.vision_client.document_text_detection(image=vision_image,image_context=self.image_context)
+            response = self.vision_client.document_text_detection(image=vision_image, image_context=self.image_context)
             
             if response.error.message:
                 raise HTTPException(
@@ -467,5 +484,5 @@ class DocumentProcessor:
                 text = " ".join([text_annotation.description for text_annotation in response.text_annotations])
             else:
                 text = ""
-       
+        
         return text

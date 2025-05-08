@@ -14,6 +14,7 @@ from judgement import JudgementStorage
 from google.cloud import vision
 import io
 from google.cloud.vision import ImageAnnotatorClient
+import pandas as pd
 
 # Load environment variables from .env file
 load_dotenv()
@@ -462,6 +463,22 @@ class DocumentProcessor:
             doc_file = BytesIO(content)
             doc = Document(doc_file)
             text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
+        elif filename.lower().endswith('.xlsx'):
+            try:
+                # Load Excel file into a pandas DataFrame
+                excel_file = BytesIO(content)
+                df = pd.read_excel(excel_file, sheet_name=None)  # Load all sheets
+                
+                # Extract text from all sheets
+                text = ""
+                for sheet_name, sheet_data in df.items():
+                    text += f"Sheet: {sheet_name}\n"
+                    text += sheet_data.to_string(index=False) + "\n\n"
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error processing Excel file: {str(e)}"
+                )
         else:
             # Compress image if needed
             if(compress):
