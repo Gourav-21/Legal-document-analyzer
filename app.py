@@ -78,7 +78,7 @@ with tab1:
         st.subheader("⏰ דוחות נוכחות")
         attendance_files = st.file_uploader(
             "העלה דוחות נוכחות",
-            type=["pdf", "png", "jpg", "jpeg", 'webp', 'docx'],
+            type=["pdf", "png", "jpg", "jpeg", 'webp', 'docx','xlsx'],
             accept_multiple_files=True,
             key="attendance_upload"
         )
