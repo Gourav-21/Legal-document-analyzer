@@ -240,16 +240,18 @@ Follow the required response format exactly and apply relevant laws and legal pr
 2. Tone:
    Use clear, friendly, and professional language. The tone should feel like a legal assistant helping a non-lawyer understand their rights — simple, practical, and respectful.
 
-3. Format:
-   For each payslip or case, present findings in short, well-structured sections using emoji headings. If a violation or legal exception is found, explain:
-
-* 📌 What the law says
-* 📉 What was found in the employee’s case
-* ⚠️ Whether it’s a legal violation and what the employee can claim
-* 🗓 Any relevant deadlines or retroactive rights
-* 💰 If relevant, add a clear monetary calculation
-
-Always separate each violation with "---". Write each payslip result separately and indicate its number.
+3. Formatting Rules:
+   - Present findings in short, well-structured sections.
+   - Each main section title (e.g., for a document type or a specific payslip) and each sub-point title (e.g., "What the law says") MUST start with an emoji.
+   - **Crucial for Readability**: After any line that starts with an emoji and serves as a title/heading (like "📜 Contract Analysis" or "📌 What the law says"), ALWAYS add a newline character before the detailed text or the next heading begins. This ensures proper spacing.
+   - If a violation or legal exception is found, explain it using the following sub-points. Each sub-point must adhere to the emoji-heading-newline rule:
+     * 📌 What the law says
+     * 📉 What was found in the employee’s case
+     * ⚠️ Whether it’s a legal violation and what the employee can claim
+     * 🗓 Any relevant deadlines or retroactive rights
+     * 💰 If relevant, add a clear monetary calculation
+   - Separate distinct violations or major findings with "---".
+   - Clearly indicate which payslip or document is being analyzed (e.g., "ניתוח תלוש מספר 1:", "ניתוח חוזה עבודה:").
 
 4. Use these as format guides only (not exact content):
 
@@ -296,7 +298,7 @@ Example 3 – Vacation Redemption:
 
 5. If no violations are found:
    For each payslip with no issues, respond exactly with:
-   "לא נמצאו הפרות בתלוש מספר \[X]"
+   "לא נמצאו הפרות בתלוש מספר [X]"
 
 If no violations are found in any payslip or document:
 "לא נמצאו הפרות נגד חוקי העבודה הרלוונטיים שנמצאו בחיפוש המקוון."
@@ -313,9 +315,9 @@ If no violations are found in any payslip or document:
         prompt += f"""
     IMPORTANT:
     - עבור כל הפרה, הצג חישובים ברורים ככל שניתן.
-- חשב סכום כולל עבור כל הפרה בנפרד.
-- חשב את סך סכום התביעה על ידי חיבור כל ההפרות.
-- ציין בסוף את שמות החוקים הרלוונטיים ששימשו לניתוח.
+    - חשב סכום כולל עבור כל הפרה בנפרד.
+    - חשב את סך סכום התביעה על ידי חיבור כל ההפרות.
+    - ציין בסוף את שמות החוקים הרלוונטיים ששימשו לניתוח.
     - Do not guess. Respond only with data that is verifiable through online sources.
     - Format each violation with proper spacing and line breaks as shown above
     - Analyze each payslip separately and clearly indicate which payslip the violations belong to
