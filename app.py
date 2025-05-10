@@ -1,5 +1,5 @@
 import streamlit as st
-from document_processor_seach import DocumentProcessor
+from document_processor_gemini import DocumentProcessor
 from fastapi import UploadFile
 from io import BytesIO
 from dotenv import load_dotenv
