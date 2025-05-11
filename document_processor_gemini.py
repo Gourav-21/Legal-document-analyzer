@@ -310,7 +310,25 @@ If no violations are found in any payslip or document:
 * Output should be final and ready to show the end user.
   """
 
-
+        elif(type=='table'):
+            prompt += f"""
+            [
+                {{
+                    "month": str,
+                    "violation_type": str,
+                    "legal_entitlement": str,  
+                    "actual_payment": str,
+                    "difference": str,
+                    "legal_explanation": str
+                }}
+            ]
+            Analyze the documents and return a structured array of violations matching this format. Each month should have its own entry.
+            Only include months where violations occurred. Include citations to relevant Israeli labor laws found in your search.
+            Return the array as a string that can be parsed as JSON.
+            do not include any other text or explanations. directly return the array.
+            Example response:
+            '[{{"month":"January 2023","violation_type":"Unpaid Overtime","legal_entitlement":"₪1,500","actual_payment":"₪0","difference":"₪1,500","legal_explanation":"According to סעיף 16 לחוק שעות עבודה ומנוחה"}},{{"month":"February 2023","violation_type":"Vacation Pay","legal_entitlement":"₪2,000","actual_payment":"₪1,000","difference":"₪1,000","legal_explanation":"Based on סעיף 9 לחוק חופשה שנתית"}}]'
+            """
         
         prompt += f"""
     IMPORTANT:
@@ -354,9 +372,6 @@ If no violations are found in any payslip or document:
                 system_instruction=[
                      types.Part.from_text(text=system_prompt),
                 ],
-                # thinking_config=types.ThinkingConfig(
-                #     include_thoughts=True,
-                # ),
             )
 
             response_stream = client.models.generate_content_stream(
@@ -370,6 +385,26 @@ If no violations are found in any payslip or document:
                 if chunk.text: # Ensure text exists before appending
                     analysis_parts.append(chunk.text)
             analysis = "".join(analysis_parts)
+            
+            if(type == 'table'):
+                try:
+                    # Find start and end of JSON array in response
+                    start_idx = analysis.find('[')
+                    end_idx = analysis.rfind(']') + 1
+                    
+                    if start_idx == -1 or end_idx == 0:
+                        # No valid JSON array found
+                        return {"legal_analysis": "No violations found", "status": "success"}
+                        
+                    # Extract just the JSON array portion
+                    json_str = analysis[start_idx:end_idx]
+                    return {"legal_analysis": json_str, "status": "success"}
+
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Error parsing table data: {str(e)}"
+                    )
             
             # Structure the result
             result = {

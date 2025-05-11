@@ -3,6 +3,7 @@ from document_processor_gemini import DocumentProcessor
 from fastapi import UploadFile
 from io import BytesIO
 from dotenv import load_dotenv
+import json
 
 # Load environment variables
 load_dotenv()
@@ -221,6 +222,38 @@ if st.session_state.processed_result:
                         st.markdown(result['legal_analysis'])
             except Exception as e:
                 st.error(f"שגיאה בהסבר: {str(e)}")
+
+        if st.button("דוח תביעה סופי", type="primary", key="table_btn"):
+            try:
+                with st.spinner("יוצר דוח תביעה סופי..."):
+                    result = doc_processor.create_report(
+                        st.session_state.processed_result.get('payslip_text'),
+                        st.session_state.processed_result.get('contract_text'),
+                        st.session_state.processed_result.get('attendance_text'),
+                        type="table", 
+                        context=context
+                    )
+                    if result.get('legal_analysis'):
+                        st.markdown("### דוח תביעה סופי")
+                        try:
+                            # The legal_analysis should be a JSON string representing a list of ClaimRow objects
+                            table_data = json.loads(result['legal_analysis'])
+                            if isinstance(table_data, list):
+                                st.dataframe(table_data)
+                            else:
+                                # If it's a single object (though prompt asks for array)
+                                st.dataframe([table_data]) 
+                        except json.JSONDecodeError:
+                            st.error("שגיאה בפענוח נתוני הטבלה שהתקבלו.")
+                            st.text("תוכן שהתקבל:")
+                            st.text(result['legal_analysis'])
+                        except Exception as display_e:
+                            st.error(f"שגיאה בהצגת הטבלה: {str(display_e)}")
+                            st.text("תוכן שהתקבל:")
+                            st.text(result['legal_analysis'])
+            except Exception as e:
+                print(e)
+                st.error(f"שגיאה ביצירת דוח התביעה הסופי: {str(e)}")
 
 # Law Management Tab
 with tab2:
