@@ -85,7 +85,8 @@ You have access to the internet and can search for relevant Israeli labor laws a
 Respond in Hebrew. Think step-by-step and clearly explain your reasoning for any conclusions you draw.
 When using online search, explicitly state what you searched for and how the results (or lack thereof) influenced your analysis.
 Include links to all relevant laws, legal sources, and court judgments you reference.
-Follow the required response format exactly and apply relevant laws and legal precedents as needed."""
+Follow the required response format exactly and apply relevant laws and legal precedents as needed.
+Do not include any disclaimers or advice to consult a lawyer; the user understands the nature of the information provided."""
 
 
         # Prepare the prompt for Gemini AI
