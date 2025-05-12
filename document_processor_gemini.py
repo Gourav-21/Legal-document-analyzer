@@ -104,6 +104,8 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
         for doc_type, content in documents.items():
             prompt += f"\n{doc_type.upper()} CONTENT:\n{content}\n"
 
+        # General instructions are now outside the loop and conditional
+        if type != 'warning_letter':
             prompt += f"""
     INSTRUCTIONS:
     1. If, after searching, you cannot find relevant labor laws online, respond with: "לא הצלחתי למצוא חוקי עבודה רלוונטיים באינטרנט לניתוח התאמה." in Hebrew.
@@ -216,6 +218,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
     1. Analyze the provided documents for labor law violations *based exclusively on the Israeli LABOR LAWS and JUDGEMENTS you find online*.
     2. If violations are found, generate a formal warning letter using the provided template.
     3. If no violations are found, respond with: "לא נמצאו הפרות המצדיקות מכתב התראה." in Hebrew.
+    4. directly return the letter only and do not include any other text or explanations.
 
     Warning Letter Template:
     {format_content}
@@ -331,7 +334,9 @@ If no violations are found in any payslip or document:
             '[{{"month":"January 2023","violation_type":"Unpaid Overtime","legal_entitlement":"₪1,500","actual_payment":"₪0","difference":"₪1,500","legal_explanation":"According to סעיף 16 לחוק שעות עבודה ומנוחה"}},{{"month":"February 2023","violation_type":"Vacation Pay","legal_entitlement":"₪2,000","actual_payment":"₪1,000","difference":"₪1,000","legal_explanation":"Based on סעיף 9 לחוק חופשה שנתית"}}]'
             """
         
-        prompt += f"""
+        # Conditionally add the IMPORTANT block, excluding it for 'warning_letter'
+        if type != 'warning_letter':
+            prompt += f"""
     IMPORTANT:
     - עבור כל הפרה, הצג חישובים ברורים ככל שניתן.
     - חשב סכום כולל עבור כל הפרה בנפרד.
