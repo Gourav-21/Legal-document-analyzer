@@ -469,10 +469,11 @@ If no violations are found in any payslip or document:
             
         except Exception as e:
             # Log the full error for debugging if possible, or at least the type and message
-            error_detail = f"Error generating legal analysis with new API: {type(e).__name__} - {str(e)}"
+         
+            error_detail = f"Error generating legal analysis with new API: {str(e)}"
             # Check if the error is from genai and has more specific details
-            if hasattr(e, 'message'): # For google.api_core.exceptions.GoogleAPIError
-                 error_detail = f"Error generating legal analysis with new API: {e.message}"
+            if hasattr(e, 'error'): # For google.api_core.exceptions.GoogleAPIError
+                error_detail = f"Error generating legal analysis with new API: {e.message}"
 
             raise HTTPException(
                 status_code=500,
