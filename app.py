@@ -174,6 +174,29 @@ if st.session_state.processed_result:
                 st.error(f"שגיאה בניתוח: {str(e)}")
     
     with col2:
+        if st.button("הכן תביעה", type="primary", key="claim_btn"):
+            try:
+                with st.spinner("מכין טיוטת תביעה..."):
+                    result = doc_processor.create_report(
+                        st.session_state.processed_result.get('payslip_text'),
+                        st.session_state.processed_result.get('contract_text'),
+                        st.session_state.processed_result.get('attendance_text'),
+                        type="claim",
+                        context=context
+                    )
+                    if result.get('claim_draft'):
+                        st.markdown("### טיוטת כתב תביעה")
+                        st.markdown(result['claim_draft'])
+                        st.success("טיוטת התביעה הוכנה בהצלחה.")
+                    elif result.get('legal_analysis'):
+                        st.markdown("### תוכן התביעה")
+                        st.markdown(result['legal_analysis'])
+                        st.success("טיוטת התביעה הוכנה בהצלחה.")
+                    else:
+                        st.info("ההכנה הסתיימה, אך לא התקבל תוכן להצגה.")
+            except Exception as e:
+                st.error(f"שגיאה בהכנת התביעה: {str(e)}")
+
         if st.button("ניתוח מקצועי", type="primary", key="professional_btn"):
             try:
                 with st.spinner("מבצע ניתוח מקצועי..."):
