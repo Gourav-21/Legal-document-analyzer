@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
-from document_processor import DocumentProcessor
+from document_processor_gemini import DocumentProcessor
 from typing import Literal, List, Dict, Optional
 
 router = APIRouter()
