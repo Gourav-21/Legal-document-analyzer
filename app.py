@@ -45,6 +45,12 @@ st.markdown("""
 if 'processed_result' not in st.session_state:
     st.session_state.processed_result = None
 
+st.session_state.processed_result={
+    'payslip_text': None,
+    'contract_text': None,
+    'attendance_text': None
+}
+
 # Title and description
 st.title("📄 מנתח מסמכים משפטיים")
 st.markdown("העלה את המסמכים המשפטיים שלך לבדיקת תאימות לחוקי העבודה הישראליים.")
@@ -258,24 +264,10 @@ if st.session_state.processed_result:
                     )
                     if result.get('legal_analysis'):
                         st.markdown("### דוח תביעה סופי")
-                        try:
-                            # The legal_analysis should be a JSON string representing a list of ClaimRow objects
-                            table_data = json.loads(result['legal_analysis'])
-                            if isinstance(table_data, list):
-                                st.dataframe(table_data)
-                            else:
-                                # If it's a single object (though prompt asks for array)
-                                st.dataframe([table_data]) 
-                        except json.JSONDecodeError:
-                            st.error("שגיאה בפענוח נתוני הטבלה שהתקבלו.")
-                            st.text("תוכן שהתקבל:")
-                            st.text(result['legal_analysis'])
-                        except Exception as display_e:
-                            st.error(f"שגיאה בהצגת הטבלה: {str(display_e)}")
-                            st.text("תוכן שהתקבל:")
-                            st.text(result['legal_analysis'])
+                        st.markdown(result['legal_analysis'])
+                    else:
+                        st.info("לא התקבל תוכן להצגת דוח התביעה הסופי.")
             except Exception as e:
-                print(e)
                 st.error(f"שגיאה ביצירת דוח התביעה הסופי: {str(e)}")
 
 # Law Management Tab
