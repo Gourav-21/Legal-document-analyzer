@@ -280,32 +280,37 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 
         elif(type=='table'):
             prompt += f"""
-You are a legal assistant AI. Your task is to take a list of labor violations with their amounts and generate a well-formatted, professional legal summary.
-The output MUST be a list where each item is on its own line.
+אתה עוזר משפטי מומחה. עליך ליצור סיכום משפטי רשמי של הפרות זכויות עובדים על פי הנתונים הבאים.
 
-Instructions for the output format:
-1.  The entire output must be a lettered list (e.g., A., B., C.).
-2.  **Each item in the list MUST start on a new line.** There should be no blank lines between items.
-3.  Use the following structure FOR EVERY ITEM, EXACTLY as shown:
-    A. A sum of [amount] NIS for [short description of violation].
-4.  Amounts must use comma separators for thousands and have exactly two decimal places (e.g., 1,234.50 NIS, 61,024.20 NIS).
-5.  The currency "NIS" must follow the amount.
-6.  Capitalize only the first letter of the description part of each line (e.g., "A sum of..." not "A Sum Of...").
-7.  The output must ONLY be the lettered list. DO NOT include any other text, headings, summaries, bullet points, or explanations.
+הנחיות:
 
-**Example of the EXACT desired output format (each item on a new line, no extra blank lines):**
-A. A sum of 127,133.74 NIS for severance pay and delayed payment.
-B. A sum of 5,706.00 NIS for unpaid December 2012 salary.
-C. A sum of 15,000.00 NIS for failure to provide notice of employment conditions.
-D. A sum of 61,024.20 NIS for failure to make pension contributions.
-E. A sum of 10,070.00 NIS for failure to provide prior notice.
-F. A sum of 80,560.00 NIS for unlawful dismissal and lack of hearing.
-G. A sum of 5,194.00 NIS for unpaid convalescence pay.
-H. A sum of 40,615.66 NIS for redemption of unused vacation.
-I. A sum of 128,112.76 NIS for unpaid overtime.
+1. הצג את התוצאה כרשימה אותיות (א., ב., ג. וכן הלאה).
 
-Follow these instructions meticulously. The formatting is critical.
-Each violation MUST be on a new line, and only a single new line should separate consecutive items.
+2. כל שורה תתחיל באות עברית, אחריה נקודה, רווח ואז הטקסט.
+
+3. השתמש במבנה הקבוע הבא:
+
+   א. סכום של \[amount] ש"ח עבור \[תיאור קצר של ההפרה].
+
+4. השתמש בפורמט מספרים עם פסיקים לאלפים ושתי ספרות אחרי הנקודה (לדוגמה: 61,024.20 ש"ח).
+
+5. כתוב "ש"ח" אחרי הסכום, לא ₪.
+
+6. אל תשתמש בבולטים, טבלאות, כותרות או סיכומים—רק הרשימה הממוינת באותיות.
+
+דוגמה לתוצאה הרצויה:
+
+א. סכום של 127,133.74 ש"ח עבור פיצויי פיטורין ואי ביצוע ההפקדה כחוק.
+ב. סכום של 5,706.00 ש"ח עבור שכר חודש דצמבר 2012 ואיחור בתשלום.
+ג. סכום של 15,000.00 ש"ח עבור אי מסירת הודעה על תנאי עבודה לפי חוק הודעה לעובד.
+ד. סכום של 61,024.20 ש"ח עבור אי ביצוע הפקדות לקרן פנסיה.
+ה. סכום של 10,070.00 ש"ח עבור אי מתן הודעה מוקדמת.
+ו. סכום של 80,560.00 ש"ח עבור פיטורים שלא כדין ואי עריכת שימוע.
+ז. סכום של 5,194.00 ש"ח עבור דמי הבראה שלא שולמו.
+ח. סכום של 40,615.66 ש"ח עבור פדיון ימי חופשה.
+ט. סכום של 128,112.76 ש"ח עבור עבודה בשעות נוספות.
+
+החזר את הפלט בפורמט המדויק הזה בלבד.
 """
 
         
