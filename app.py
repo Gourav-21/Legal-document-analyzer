@@ -45,12 +45,6 @@ st.markdown("""
 if 'processed_result' not in st.session_state:
     st.session_state.processed_result = None
 
-st.session_state.processed_result={
-    'payslip_text': None,
-    'contract_text': None,
-    'attendance_text': None
-}
-
 # Title and description
 st.title("📄 מנתח מסמכים משפטיים")
 st.markdown("העלה את המסמכים המשפטיים שלך לבדיקת תאימות לחוקי העבודה הישראליים.")
