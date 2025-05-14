@@ -120,7 +120,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
     [VIOLATION TITLE]
     [DESCRIPTION OF SPECIFIC VIOLATION]
     [LAW REFERENCE AND YEAR (based on online search)]
-    [SIMILAR CASE OR LEGAL PRECEDENT (based on online search). If none is found, write: "לא נמצאו תקדימים רלוונטיים בחיפוש המקוון."]
+    [About SIMILAR CASE OR LEGAL PRECEDENT (based on online search,seach thoroughly because there is a case for every laws out there`). If none is found, write: "לא נמצאו תקדימים רלוונטיים בחיפוש המקוון."]
     [LEGAL IMPLICATIONS]
     [RECOMMENDED ACTIONS]
     
@@ -236,103 +236,78 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 
         elif(type=='easy'):
             prompt += f"""
- Instructions:
+🔒 מטרה: צור סיכום קצר וברור של ההפרות בתלושי השכר של העובד.
+📌 כללים מחייבים:
+	1. כתוב בעברית בלבד – אל תשתמש באנגלית בכלל.
+	2. עבור כל חודש הצג את ההפרות בשורות נפרדות, כל שורה בפורמט הבא:
+❌ [סוג ההפרה בקצרה] – [סכום בש"ח עם ₪, כולל פסיק לאלפים]
+לדוגמה: ❌ לא שולם החזר נסיעות בפברואר 2025 – 250 ₪
+	3. אם יש מספר רכיבי פנסיה (עובד/מעסיק/בריאות) בחודש מסוים – חבר אותם לסכום אחד של פנסיה באותו החודש.
+	4. כל הסכומים יוצגו עם פסיקים לאלפים ועם ₪ בסוף.
+	5. חישוב הסכום הכולל יופיע בשורה נפרדת:
+💰 סה"כ: [סכום כולל] ₪
+	6. הוסף המלצה בסוף:
+📝 מה לעשות עכשיו:
+פנה/י למעסיק עם דרישה לתשלום הסכומים.
+אם אין מענה – מומלץ לפנות לייעוץ משפטי.
+📍 הנחיות נוספות:
+	• אין לכתוב מספרים בלי הקשר, כל שורה חייבת להיות מלווה בחודש.
+	• מיזוג שורות: אם באותו חודש יש כמה רכיבים של פנסיה – מיזג אותם לשורה אחת.
+	• הסר שורות ללא סכום ברור.
+	• ניסוח פשוט, ללא מינוחים משפטיים, הבהרות או הסברים טכניים.
+	• אין לציין "רכיב עובד", "רכיב מעסיק", "לא הופקד" – במקום זאת כתוב: "לא שולמה פנסיה".
+🎯 פלט רצוי:
+	• שורות מסודרות לפי חודשים
+	• אין כפילויות
+	• סכומים מדויקים בלבד
+	• ניסוח ברור ומובן
+	• עברית בלבד
 
-1. Language:
-   Respond only in Hebrew.
-
-2. Tone:
-   Use clear, friendly, and professional language. The tone should feel like a legal assistant helping a non-lawyer understand their rights — simple, practical, and respectful.
-
-3. Formatting Rules:
-   - Present findings in short, well-structured sections.
-   - Each main section title (e.g., for a document type or a specific payslip) and each sub-point title (e.g., "What the law says") MUST start with an emoji.
-   - **Crucial for Readability**: After any line that starts with an emoji and serves as a title/heading (like "📜 Contract Analysis" or "📌 What the law says"), ALWAYS add a newline character before the detailed text or the next heading begins. This ensures proper spacing.
-   - If a violation or legal exception is found, explain it using the following sub-points. Each sub-point must adhere to the emoji-heading-newline rule:
-     * 📌 What the law says
-     * 📉 What was found in the employee’s case
-     * ⚠️ Whether it’s a legal violation and what the employee can claim
-     * 🗓 Any relevant deadlines or retroactive rights
-     * 💰 If relevant, add a clear monetary calculation
-   - Separate distinct violations or major findings with "---".
-   - Clearly indicate which payslip or document is being analyzed (e.g., "ניתוח תלוש מספר 1:", "ניתוח חוזה עבודה:").
-
-4. Use these as format guides only (not exact content):
-
-Example 1 – Unemployment:
-
-📅 לפי הנתונים שהוזנו:
-תאריך התפטרות: 15.09.2023
-תאריך התייצבות ראשון: 10.01.2024
-הגיל שלך: 32
-ותק תעסוקתי: מעל 24 חודשים
-
-🔎 לפי החוק, את/ה זכאי/ת ל־100 ימי אבטלה.
-נכון לעכשיו התייצבת 63 פעמים, ולכן נותרו לך 37 ימי זכאות.
-
-⚠️ טרם הוגשה תביעה לביטוח הלאומי.
-כדי לא להפסיד כסף – מומלץ להגיש את התביעה עד 09.01.2025 (אפשר רטרואקטיבית עד שנה אחורה).
-
-Example 2 – Overtime Violation:
-
-⏱ שעות עבודה ביום: 10
-סוג שכר: שכר חודשי רגיל (ללא שעות נוספות מוגדרות)
-
-📌 לפי חוק שעות עבודה ומנוחה:
-את/ה עובד/ת שעתיים נוספות ביום × 5 ימים = 10 שעות נוספות בשבוע.
-התשלום המינימלי עבורן צריך להיות כ־1,334 ₪ בחודש (בהנחה שהשכר שלך הוא 7,000 ₪).
-
-⚠️ נמצאה הפרה של החוק.
-את/ה זכאי/ת לדרוש תשלום רטרואקטיבי על שעות נוספות.
-ייתכן שמדובר בהפרה מתמשכת שמזכה בפיצוי נוסף.
-
-Example 3 – Vacation Redemption:
-
-🗓 ותק בעבודה: שנה וחצי
-ימי עבודה בשבוע: 5
-משרה מלאה: כן
-מספר ימי חופשה שנוצלו בפועל: 0
-שובר פדיון חופשה: לא הופיע
-
-📌 לפי החוק, את/ה זכאי/ת ל־14 ימי חופשה (שנה ראשונה: 12, חצי שנה שנייה: 2).
-
-📉 נמצאה חריגה:
-נוצלו 0 ימים, ולכן המעסיק מחויב לפדות את מלוא הזכאות בכסף.
-זו הפרה של חוק חופשה שנתית, והעובד/ת רשאי/ת לדרוש תשלום מיידי.
-
-5. If no violations are found:
-   For each payslip with no issues, respond exactly with:
-   "לא נמצאו הפרות בתלוש מספר [X]"
-
-If no violations are found in any payslip or document:
-"לא נמצאו הפרות נגד חוקי העבודה הרלוונטיים שנמצאו בחיפוש המקוון."
-
-6. Legal Requirements:
-
-* Match calculations to the laws or rulings found.
-* Do not add summaries or introductions.
-* Output should be final and ready to show the end user.
-  """
+🧪 Example of desired output:
+📢 סיכום ההפרות:
+❌ לא שולם עבור שעות נוספות בנובמבר 2024 – 495 ₪
+❌ לא שולמה פנסיה בנובמבר 2024 – 750 ₪
+❌ לא שולמה פנסיה בדצמבר 2024 – 1,221 ₪
+❌ לא שולמה פנסיה בינואר 2025 – 831 ₪
+❌ לא שולם החזר נסיעות בפברואר 2025 – 250 ₪
+❌ לא שולמה פנסיה בפברואר 2025 – 858 ₪
+❌ לא שולמה פנסיה במרץ 2025 – 866 ₪
+💰 סה"כ: 5,271 ₪
+📝 מה לעשות עכשיו:
+פנה/י למעסיק עם דרישה לתשלום הסכומים.
+אם אין מענה – מומלץ לפנות לייעוץ משפטי.
+"""
 
         elif(type=='table'):
             prompt += f"""
-            [
-                {{
-                    "month": str,
-                    "violation_type": str,
-                    "legal_entitlement": str,  
-                    "actual_payment": str,
-                    "difference": str,
-                    "legal_explanation": str
-                }}
-            ]
-            Analyze the documents and return a structured array of violations matching this format. Each month should have its own entry.
-            Only include months where violations occurred. Include citations to relevant Israeli labor laws found in your search.
-            Return the array as a string that can be parsed as JSON.
-            do not include any other text or explanations. directly return the array.
-            Example response:
-            '[{{"month":"January 2023","violation_type":"Unpaid Overtime","legal_entitlement":"₪1,500","actual_payment":"₪0","difference":"₪1,500","legal_explanation":"According to סעיף 16 לחוק שעות עבודה ומנוחה"}},{{"month":"February 2023","violation_type":"Vacation Pay","legal_entitlement":"₪2,000","actual_payment":"₪1,000","difference":"₪1,000","legal_explanation":"Based on סעיף 9 לחוק חופשה שנתית"}}]'
-            """
+You are a legal assistant AI. Your task is to take a list of labor violations with their amounts and generate a well-formatted, professional legal summary.
+The output MUST be a list where each item is on its own line.
+
+Instructions for the output format:
+1.  The entire output must be a lettered list (e.g., A., B., C.).
+2.  **Each item in the list MUST start on a new line.** There should be no blank lines between items.
+3.  Use the following structure FOR EVERY ITEM, EXACTLY as shown:
+    A. A sum of [amount] NIS for [short description of violation].
+4.  Amounts must use comma separators for thousands and have exactly two decimal places (e.g., 1,234.50 NIS, 61,024.20 NIS).
+5.  The currency "NIS" must follow the amount.
+6.  Capitalize only the first letter of the description part of each line (e.g., "A sum of..." not "A Sum Of...").
+7.  The output must ONLY be the lettered list. DO NOT include any other text, headings, summaries, bullet points, or explanations.
+
+**Example of the EXACT desired output format (each item on a new line, no extra blank lines):**
+A. A sum of 127,133.74 NIS for severance pay and delayed payment.
+B. A sum of 5,706.00 NIS for unpaid December 2012 salary.
+C. A sum of 15,000.00 NIS for failure to provide notice of employment conditions.
+D. A sum of 61,024.20 NIS for failure to make pension contributions.
+E. A sum of 10,070.00 NIS for failure to provide prior notice.
+F. A sum of 80,560.00 NIS for unlawful dismissal and lack of hearing.
+G. A sum of 5,194.00 NIS for unpaid convalescence pay.
+H. A sum of 40,615.66 NIS for redemption of unused vacation.
+I. A sum of 128,112.76 NIS for unpaid overtime.
+
+Follow these instructions meticulously. The formatting is critical.
+Each violation MUST be on a new line, and only a single new line should separate consecutive items.
+"""
+
         
         elif(type == 'claim'):
             prompt = f"""
@@ -381,8 +356,8 @@ If no violations are found in any payslip or document:
 
 """
 
-        # Conditionally add the IMPORTANT block, excluding it for 'warning_letter'
-        if type != 'warning_letter':
+        # Conditionally add the IMPORTANT block, excluding it for 'warning_letter' and 'easy'
+        # if type != 'warning_letter' and type != 'easy' and type != 'table':
             prompt += f"""
     IMPORTANT:
     - עבור כל הפרה, הצג חישובים ברורים ככל שניתן.
@@ -439,26 +414,6 @@ If no violations are found in any payslip or document:
                     analysis_parts.append(chunk.text)
             analysis = "".join(analysis_parts)
             
-            if(type == 'table'):
-                try:
-                    # Find start and end of JSON array in response
-                    start_idx = analysis.find('[')
-                    end_idx = analysis.rfind(']') + 1
-                    
-                    if start_idx == -1 or end_idx == 0:
-                        # No valid JSON array found
-                        return {"legal_analysis": "No violations found", "status": "success"}
-                        
-                    # Extract just the JSON array portion
-                    json_str = analysis[start_idx:end_idx]
-                    return {"legal_analysis": json_str, "status": "success"}
-
-                except Exception as e:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Error parsing table data: {str(e)}"
-                    )
-            
             # Structure the result
             result = {
                 "legal_analysis": analysis,
@@ -469,7 +424,6 @@ If no violations are found in any payslip or document:
             
         except Exception as e:
             # Log the full error for debugging if possible, or at least the type and message
-         
             error_detail = f"Error generating legal analysis with new API: {str(e)}"
             # Check if the error is from genai and has more specific details
             if hasattr(e, 'error'): # For google.api_core.exceptions.GoogleAPIError
