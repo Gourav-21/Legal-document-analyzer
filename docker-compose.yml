@@ -5,6 +5,8 @@ services:
     build: .
     ports:
       - "8000:8000"
+    env_file:
+      - .env  # Loads variables from .env first
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/legal_db
       - JWT_SECRET_KEY=your-secret-key-here

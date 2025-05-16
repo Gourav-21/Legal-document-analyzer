@@ -2,9 +2,10 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, F
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+from sqlalchemy.exc import OperationalError # Import OperationalError
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/legal_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -37,3 +38,21 @@ def get_db():
         yield db
     finally:
         db.close()
+        
+def check_db_connection():
+    """Attempts to connect to the database and returns True if successful, False otherwise."""
+    try:
+        # Try to establish a connection
+        connection = engine.connect()
+        # If successful, close the connection and return True
+        connection.close()
+        print("Database connection successful.")
+        return True
+    except OperationalError as e:
+        # If connection fails, print error and return False
+        print(f"Database connection failed: {e}")
+        return False
+    except Exception as e:
+        # Catch other potential exceptions during connection attempt
+        print(f"An unexpected error occurred during DB connection check: {e}")
+        return False
