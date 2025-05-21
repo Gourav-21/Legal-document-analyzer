@@ -17,6 +17,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    name = Column(String)
+    phone_no = Column(String)  # Changed from phoneno
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class AnalysisHistory(Base):

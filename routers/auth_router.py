@@ -11,9 +11,13 @@ router = APIRouter()
 class UserCreate(BaseModel):
     email: str
     password: str
+    name: str
+    phone_no: str
 
 class UserResponse(BaseModel):
     email: str
+    name: str
+    phone_no: str
 
 @router.post("/register", response_model=UserResponse)
 async def register_user(user: UserCreate, response: Response, db: Session = Depends(get_db)):
@@ -25,7 +29,7 @@ async def register_user(user: UserCreate, response: Response, db: Session = Depe
         )
     
     hashed_password = get_password_hash(user.password)
-    db_user = User(email=user.email, hashed_password=hashed_password)
+    db_user = User(email=user.email, hashed_password=hashed_password, name=user.name, phone_no=user.phone_no)
     
     db.add(db_user)
     db.commit()
@@ -40,7 +44,7 @@ async def register_user(user: UserCreate, response: Response, db: Session = Depe
         samesite="lax",
         secure=False
     )
-    return {"email": user.email}
+    return {"email": user.email, "name": user.name, "phone_no": user.phone_no}
 
 @router.post("/login", response_model=UserResponse)
 async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -61,7 +65,7 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
         samesite="lax",
         secure=False
     )
-    return {"email": user.email}
+    return {"email": user.email, "name": user.name, "phone_no": user.phone_no}
 
 @router.post("/logout")
 async def logout(response: Response):
