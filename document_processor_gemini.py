@@ -589,7 +589,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
             # Using gemini-2.5-flash-preview-05-20 as requested for summarization
             model_name = "gemini-2.5-flash-preview-04-17"
 
-            prompt = f"Please summarize the following text concisely:\n\n{ai_content_text}"
+            prompt = f"Please summarize the following text concisely in hebrew:\n\n{ai_content_text}"
             
             api_contents = [
                 types.Content(
