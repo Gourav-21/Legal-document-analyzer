@@ -575,3 +575,56 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
                 text = ""
         
         return text
+
+    def summarise(self, ai_content_text: str) -> str:
+        """
+        Summarizes the given text using the Gemini 2.5 Flash model.
+        """
+        try:
+            gemini_api_key = os.environ.get("GOOGLE_CLOUD_VISION_API_KEY")
+            if not gemini_api_key:
+                raise ValueError("GEMINI_API_KEY not found in environment variables.")
+
+            client = genai.Client(api_key=gemini_api_key)
+            # Using gemini-2.5-flash-preview-05-20 as requested for summarization
+            model_name = "gemini-2.5-flash-preview-04-17"
+
+            prompt = f"Please summarize the following text concisely:\n\n{ai_content_text}"
+            
+            api_contents = [
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=prompt),
+                    ],
+                ),
+            ]
+            
+            # Minimal config for summarization, no tools needed unless specified
+            gen_config = types.GenerateContentConfig(
+                temperature=0.1, # Lower temperature for more factual summary
+                response_mime_type="text/plain",
+            )
+
+            response = client.models.generate_content(
+                model=model_name,
+                contents=api_contents,
+                config=gen_config,
+            )
+            
+            summary = ""
+            if response.text:
+                summary = response.text
+            
+            return summary
+            
+        except Exception as e:
+            error_detail = f"Error generating summary with Gemini Flash: {str(e)}"
+            if hasattr(e, 'error'): # For google.api_core.exceptions.GoogleAPIError
+                error_detail = f"Error generating summary with Gemini Flash: {e.message}"
+            # Depending on how you want to handle errors, you might raise an HTTPException
+            # or return an error message. For now, let's re-raise to be consistent.
+            raise HTTPException(
+                status_code=500,
+                detail=error_detail
+            )
