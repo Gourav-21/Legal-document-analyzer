@@ -296,7 +296,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 2. תחת כל כותרת, צור רשימה ממוספרת באותיות עבריות (א., ב., ג. וכו').
 
 3. השתמש במבנה הקבוע הבא:
-   א. סכום של [amount] ש"ח עבור \[תיאור קצר של ההפרה].
+   א. סכום של [amount] ש"ח עבור [תיאור קצר של ההפרה].
 
 4. השתמש בפורמט מספרים עם פסיקים לאלפים ושתי ספרות אחרי הנקודה (למשל: 1,618.75 ש"ח).
 
@@ -516,10 +516,10 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
                 text = ''
                 with pdfplumber.open(pdf_file) as pdf:
                     for page in pdf.pages:
-                        page_text = page.extract_text()
-                        if page_text and page_text.strip():
-                            text += page_text + "\n"
-                        else:
+                        # page_text = page.extract_text()
+                        # if page_text and page_text.strip():
+                        #     text += page_text + "\n"
+                        # else:
                             # Convert PDF page to image and use Vision API
                             img = page.to_image(resolution=300).original
                             img_byte_arr = io.BytesIO()
