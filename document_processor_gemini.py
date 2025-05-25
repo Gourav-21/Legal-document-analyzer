@@ -286,7 +286,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 """
 
         elif(type=='table'):
-            prompt = f"""
+            prompt += f"""
 אתה עוזר משפטי מיומן. עליך לנתח את רשימת ההפרות ולהפיק רשימת תביעות מסודרת לפי מסמך (לדוגמה: תלוש שכר מס' 1, מסמך שימוע, מכתב פיטורין וכו').
 
 הנחיות:
@@ -329,7 +329,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 """
         
         elif(type == 'claim'):
-            prompt = f"""
+            prompt += f"""
 משימה:
 כתוב טיוטת כתב תביעה לבית הדין האזורי לעבודה, בהתאם למבנה המשפטי הנהוג בישראל.
 
