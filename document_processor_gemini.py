@@ -587,7 +587,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 
             client = genai.Client(api_key=gemini_api_key)
             # Using gemini-2.5-flash-preview-05-20 as requested for summarization
-            model_name = "gemini-2.5-flash-preview-04-17"
+            model_name = "gemini-2.5-flash-preview-05-20"
 
             prompt = f"Please summarize the following text concisely in hebrew:\n\n{ai_content_text}"
             
