@@ -72,6 +72,9 @@ class DocumentProcessor:
         
         # Initialize payslip counter
         payslip_counter = 0
+        contract_counter = 0
+        attendance_counter = 0
+        
         # Process each file based on its type
         for file, doc_type in zip(files, doc_types):
             extracted_text = self._extract_text2(file.file.read(), file.filename, compress=compress)
@@ -79,9 +82,11 @@ class DocumentProcessor:
                 payslip_counter += 1
                 payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
             elif doc_type.lower() == "contract":
-                contract_text = extracted_text
+                contract_counter += 1
+                contract_text = f"Contract {contract_counter}:\n{extracted_text}" if contract_text is None else f"{contract_text}\n\nContract {contract_counter}:\n{extracted_text}"
             elif doc_type.lower() == "attendance":
-                attendance_text = extracted_text
+                attendance_counter += 1
+                attendance_text = f"Attendance {attendance_counter}:\n{extracted_text}" if attendance_text is None else f"{attendance_text}\n\nAttendance {attendance_counter}:\n{extracted_text}"
         # Return the extracted texts
         return {
             "payslip_text": payslip_text,

@@ -53,6 +53,9 @@ class DocumentProcessor:
         
         # Initialize payslip counter
         payslip_counter = 0
+        contract_counter = 0
+        attendance_counter = 0
+        
         # Process each file based on its type
         for file, doc_type in zip(files, doc_types):
             extracted_text = self._extract_text2(file.file.read(), file.filename, compress=compress)
@@ -60,9 +63,11 @@ class DocumentProcessor:
                 payslip_counter += 1
                 payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
             elif doc_type.lower() == "contract":
-                contract_text = extracted_text
+                contract_counter += 1
+                contract_text = f"Contract {contract_counter}:\n{extracted_text}" if contract_text is None else f"{contract_text}\n\nContract {contract_counter}:\n{extracted_text}"
             elif doc_type.lower() == "attendance":
-                attendance_text = extracted_text
+                attendance_counter += 1
+                attendance_text = f"Attendance {attendance_counter}:\n{extracted_text}" if attendance_text is None else f"{attendance_text}\n\nAttendance {attendance_counter}:\n{extracted_text}"
         # Return the extracted texts
         return {
             "payslip_text": payslip_text,
@@ -286,7 +291,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 """
 
         elif(type=='table'):
-            prompt = f"""
+            prompt += f"""
 אתה עוזר משפטי מיומן. עליך לנתח את רשימת ההפרות ולהפיק רשימת תביעות מסודרת לפי מסמך (לדוגמה: תלוש שכר מס' 1, מסמך שימוע, מכתב פיטורין וכו').
 
 הנחיות:
@@ -296,7 +301,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 2. תחת כל כותרת, צור רשימה ממוספרת באותיות עבריות (א., ב., ג. וכו').
 
 3. השתמש במבנה הקבוע הבא:
-   א. סכום של [amount] ש"ח עבור \[תיאור קצר של ההפרה].
+   א. סכום של [amount] ש"ח עבור [תיאור קצר של ההפרה].
 
 4. השתמש בפורמט מספרים עם פסיקים לאלפים ושתי ספרות אחרי הנקודה (למשל: 1,618.75 ש"ח).
 
@@ -329,7 +334,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 """
         
         elif(type == 'claim'):
-            prompt = f"""
+            prompt += f"""
 משימה:
 כתוב טיוטת כתב תביעה לבית הדין האזורי לעבודה, בהתאם למבנה המשפטי הנהוג בישראל.
 
@@ -516,10 +521,10 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
                 text = ''
                 with pdfplumber.open(pdf_file) as pdf:
                     for page in pdf.pages:
-                        page_text = page.extract_text()
-                        if page_text and page_text.strip():
-                            text += page_text + "\n"
-                        else:
+                        # page_text = page.extract_text()
+                        # if page_text and page_text.strip():
+                        #     text += page_text + "\n"
+                        # else:
                             # Convert PDF page to image and use Vision API
                             img = page.to_image(resolution=300).original
                             img_byte_arr = io.BytesIO()
@@ -587,7 +592,7 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
 
             client = genai.Client(api_key=gemini_api_key)
             # Using gemini-2.5-flash-preview-05-20 as requested for summarization
-            model_name = "gemini-2.5-flash-preview-04-17"
+            model_name = "gemini-2.5-flash-preview-05-20"
 
             prompt = f"Please summarize the following text concisely in hebrew:\n\n{ai_content_text}"
             
