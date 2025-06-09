@@ -91,50 +91,48 @@ context = st.text_area("הקשר נוסף או הערות מיוחדות", heigh
 if (payslip_files or contract_files or attendance_files) and st.button("עבד מסמכים", type="primary"):
     try:
         with st.spinner("מעבד מסמכים..."):
-            # Process documents
-            all_files = []
-            all_doc_types = []
-            
-            # Add payslip files
+            # Prepare a result dictionary to hold combined texts
+            result = {
+                "payslip_text": "",
+                "contract_text": "",
+                "attendance_text": ""
+            }
+
             if payslip_files:
+                payslip_texts = []
                 for file in payslip_files:
                     file_content = file.read()
-                    fastapi_file = UploadFile(
-                        filename=file.name,
-                        file=BytesIO(file_content)
-                    )
-                    all_files.append(fastapi_file)
-                    all_doc_types.append("payslip")
-            
-            # Add contract files
+                    # Use new AgenticDoc-powered method, returns markdown/text
+                    payslip_text = doc_processor._extract_text2(file_content, file.name)
+                    payslip_texts.append(payslip_text)
+                result["payslip_text"] = "\n--- New Payslip ---\n".join(payslip_texts)
+
             if contract_files:
+                contract_texts = []
                 for file in contract_files:
                     file_content = file.read()
-                    fastapi_file = UploadFile(
-                        filename=file.name,
-                        file=BytesIO(file_content)
-                    )
-                    all_files.append(fastapi_file)
-                    all_doc_types.append("contract")
+                    # Use same method for contracts
+                    contract_text = doc_processor._extract_text2(file_content, file.name)
+                    contract_texts.append(contract_text)
+                result["contract_text"] = "\n--- New Contract ---\n".join(contract_texts)
 
-            # Add attendance files
             if attendance_files:
+                attendance_texts = []
                 for file in attendance_files:
                     file_content = file.read()
-                    fastapi_file = UploadFile(
-                        filename=file.name,
-                        file=BytesIO(file_content)
-                    )
-                    all_files.append(fastapi_file)
-                    all_doc_types.append("attendance")
-            
-            # Process all documents
-            st.session_state.processed_result = doc_processor.process_document(all_files, all_doc_types,True)
+                    # Use same method for attendance files (returns markdown or plain text)
+                    attendance_text = doc_processor._extract_text2(file_content, file.name)
+                    attendance_texts.append(attendance_text)
+                result["attendance_text"] = "\n--- New Attendance Report ---\n".join(attendance_texts)
+
+            # Save to session state
+            st.session_state.processed_result = result
             st.success("המסמכים עובדו בהצלחה! כעת תוכל לבחור סוג ניתוח.")
-            
+
     except Exception as e:
         st.error(f"שגיאה בעיבוד המסמכים: {str(e)}")
         st.info("אנא ודא שהמסמכים בפורמט הנכון ונסה שוב.")
+
 
 # Analysis buttons (only shown after processing)
 if st.session_state.processed_result:

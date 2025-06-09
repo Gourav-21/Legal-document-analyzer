@@ -4,59 +4,73 @@ from google import genai
 from google.genai import types
 import os
 from dotenv import load_dotenv
-import pdfplumber
 from io import BytesIO
 from typing import List, Dict, Union
 from docx import Document
 from judgement import JudgementStorage
 from labour_law import LaborLawStorage
 from routers.letter_format_api import LetterFormatStorage
-from google.cloud import vision
 import io
-from google.cloud.vision import ImageAnnotatorClient
 import pandas as pd
+from agentic_doc.parse import parse
 
 # Load environment variables from .env file
 load_dotenv()
 
 class DocumentProcessor:
     def __init__(self):
-        # Initialize Vision client with API key
-        vision_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
-        if not vision_api_key:
-            raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_in your .env filevariable.")
-        
-        self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
-        self.image_context = {"language_hints": ["he"]} 
         self.letter_format = LetterFormatStorage()
         self.law_storage = LaborLawStorage()
         self.judgement_storage = JudgementStorage()
 
-    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, str]:
+
+    def _extract_text2(self, content: bytes, filename: str, compress: bool = False) -> str:
+        # Use AgenticDoc for PDFs and images, fallback for docx/xlsx
+        try:
+            if filename.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg')):
+                # Pass bytes directly to AgenticDoc
+                result = parse(content)
+                # Return markdown or structured, as you prefer
+                return result[0].markdown
+            elif filename.lower().endswith('.docx'):
+                doc_file = BytesIO(content)
+                doc = Document(doc_file)
+                return '\n'.join([p.text for p in doc.paragraphs])
+            elif filename.lower().endswith('.xlsx'):
+                excel_file = BytesIO(content)
+                df = pd.read_excel(excel_file, sheet_name=None)
+                text = ""
+                for sheet, data in df.items():
+                    text += f"Sheet: {sheet}\n"
+                    text += data.to_string(index=False) + "\n\n"
+                return text
+            else:
+                # Unknown file type, treat as plain text
+                return content.decode('utf-8', errors='ignore')
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Extraction error: {str(e)}")
+
+    def process_document(self, files, doc_types, compress: bool = False):
+        # No changes needed here, it still works (calls self._extract_text2 for each file)
         if not files:
             raise HTTPException(
                 status_code=400,
                 detail="At least one document must be provided"
             )
         
-        # Handle single file case
         if isinstance(files, UploadFile):
             files = [files]
             doc_types = [doc_types]
         elif not isinstance(doc_types, list):
             doc_types = [doc_types] * len(files)
         
-        # Initialize text storage
         payslip_text = None
         contract_text = None
         attendance_text = None
-        
-        # Initialize payslip counter
         payslip_counter = 0
         contract_counter = 0
         attendance_counter = 0
         
-        # Process each file based on its type
         for file, doc_type in zip(files, doc_types):
             extracted_text = self._extract_text2(file.file.read(), file.filename, compress=compress)
             if doc_type.lower() == "payslip":
@@ -68,12 +82,12 @@ class DocumentProcessor:
             elif doc_type.lower() == "attendance":
                 attendance_counter += 1
                 attendance_text = f"Attendance {attendance_counter}:\n{extracted_text}" if attendance_text is None else f"{attendance_text}\n\nAttendance {attendance_counter}:\n{extracted_text}"
-        # Return the extracted texts
         return {
             "payslip_text": payslip_text,
             "contract_text": contract_text,
             "attendance_text": attendance_text
         }
+
     
     def create_report(self, payslip_text: str = None, contract_text: str = None, attendance_text: str = None, type: str = "report", context: str = None) -> Dict:
         # Prepare documents for analysis
@@ -513,73 +527,6 @@ Do not include any disclaimers or advice to consult a lawyer; the user understan
             img.save(output, format='JPEG', quality=70, optimize=True)
         
         return output.getvalue()
-
-    def _extract_text2(self, content: bytes, filename: str, compress: bool = False) -> str:
-        if filename.lower().endswith('.pdf'):
-            try:
-                pdf_file = BytesIO(content)
-                text = ''
-                with pdfplumber.open(pdf_file) as pdf:
-                    for page in pdf.pages:
-                        # page_text = page.extract_text()
-                        # if page_text and page_text.strip():
-                        #     text += page_text + "\n"
-                        # else:
-                            # Convert PDF page to image and use Vision API
-                            img = page.to_image(resolution=300).original
-                            img_byte_arr = io.BytesIO()
-                            img.save(img_byte_arr, format='PNG')
-                            img_content = img_byte_arr.getvalue()
-                            
-                            vision_image = vision.Image(content=img_content)
-                            response = self.vision_client.text_detection(image=vision_image, image_context=self.image_context)
-                            if response.text_annotations:
-                                text_list = [text_annotation.description for text_annotation in response.text_annotations]
-                                text += " ".join(text_list) + "\n"
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error processing PDF: {str(e)}"
-                )
-        elif filename.lower().endswith('.docx'):
-            doc_file = BytesIO(content)
-            doc = Document(doc_file)
-            text = '\n'.join([paragraph.text for paragraph in doc.paragraphs])
-        elif filename.lower().endswith('.xlsx'):
-            try:
-                # Load Excel file into a pandas DataFrame
-                excel_file = BytesIO(content)
-                df = pd.read_excel(excel_file, sheet_name=None)  # Load all sheets
-                
-                # Extract text from all sheets
-                text = ""
-                for sheet_name, sheet_data in df.items():
-                    text += f"Sheet: {sheet_name}\n"
-                    text += sheet_data.to_string(index=False) + "\n\n"
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error processing Excel file: {str(e)}"
-                )
-        else:
-            # Compress image if needed
-            if compress:
-                content = self._compress_image(content)
-            vision_image = vision.Image(content=content)
-            response = self.vision_client.document_text_detection(image=vision_image, image_context=self.image_context)
-            
-            if response.error.message:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Vision API Error: {response.error.message}"
-                )
-            
-            if response.text_annotations:
-                text = " ".join([text_annotation.description for text_annotation in response.text_annotations])
-            else:
-                text = ""
-        
-        return text
 
     def summarise(self, ai_content_text: str) -> str:
         """
