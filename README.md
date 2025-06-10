@@ -18,7 +18,7 @@ cp .env.example .env
 
 Then, edit the `.env` file with your specific configurations.
 
-- `GEMINI_API_KEY`: Your API key for Gemini.
+- `OPENAI_API_KEY`: Your API key for OpenAI.
 - `TESSERACT_CMD`: Path to the Tesseract executable (e.g., `/usr/bin/tesseract` or `C:\\Program Files\\Tesseract-OCR\\tesseract.exe` on Windows).
 - `GOOGLE_CLOUD_VISION_API_KEY`: Your API key for Google Cloud Vision.
 - `DATABASE_URL`: The connection string for your PostgreSQL database (e.g., `postgresql+psycopg://postgres:YOUR_DB_PASSWORD@localhost:5432/legal`).
@@ -45,7 +45,7 @@ Then, edit the `.env` file with your specific configurations.
     ```
     Then, edit the `.env` file with your local development credentials and paths.
     Ensure your `.env` file for local development includes:
-    - `GEMINI_API_KEY="your_gemini_api_key"`
+    - `OPENAI_API_KEY="your_openai_api_key"`
     - `TESSERACT_CMD="/path/to/tesseract"` (update if different for your local OS, e.g., `C:\\Program Files\\Tesseract-OCR\\tesseract.exe`)
     - `GOOGLE_CLOUD_VISION_API_KEY="your_google_cloud_vision_key"`
     - `DATABASE_URL="postgresql+psycopg://postgres:YOUR_DB_PASSWORD@localhost:5432/legal"` (adjust to your local PostgreSQL setup)
@@ -74,9 +74,8 @@ Then, edit the `.env` file with your specific configurations.
 4.  **Set up your PostgreSQL database** for production.
 5.  **Set the required environment variables securely** on your server. For your own server, you can manage these variables by:
     *   Creating an environment file (e.g., `.env`). Ensure this file is **not** committed to your version control system (e.g., add it to `.gitignore`). Load these variables into your application's environment when it starts.
-    *   Setting them as system-wide environment variables.
-    The `.env.example` file shows which variables are needed.
-    - `GEMINI_API_KEY="your_production_gemini_api_key"`
+    *   Setting them as system-wide environment variables.    The `.env.example` file shows which variables are needed.
+    - `OPENAI_API_KEY="your_production_openai_api_key"`
     - `TESSERACT_CMD="/usr/bin/tesseract"` (ensure this path is correct for your server)
     - `GOOGLE_CLOUD_VISION_API_KEY="your_production_google_cloud_vision_key"`
     - `DATABASE_URL="postgresql+psycopg://USER:PASSWORD@PRODUCTION_DB_HOST:PORT/DATABASE"`
