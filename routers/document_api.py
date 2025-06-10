@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
 from pydantic import BaseModel
-from document_processor_openai import DocumentProcessor
+from document_processor_gemini import DocumentProcessor
 from typing import Literal, List, Dict, Optional
 from sqlalchemy.orm import Session
 from database import get_db, AnalysisHistory, User
