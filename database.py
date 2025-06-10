@@ -4,6 +4,10 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 from sqlalchemy.exc import OperationalError # Import OperationalError
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
