@@ -8,6 +8,7 @@ from auth import get_current_user
 
 router = APIRouter()
 doc_processor = DocumentProcessor()
+# PydanticAIDocumentProcessor = PydanticAIDocumentProcessor()
 
 class SummarizeRequest(BaseModel):
     ai_content: str

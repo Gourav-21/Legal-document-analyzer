@@ -3,6 +3,12 @@ alembic==1.15.2
 altair==5.5.0
 annotated-types==0.7.0
 anyio==4.9.0
+# PydanticAI and RAG dependencies
+pydantic-ai==0.0.16
+chromadb==1.0.13
+sentence-transformers==3.3.1
+# Note: faiss-cpu removed due to Windows compilation issues
+# ChromaDB provides vector search capabilities
 attrs==25.3.0
 bcrypt==4.0.1
 blinker==1.9.0
@@ -110,3 +116,4 @@ urllib3==2.3.0
 uvicorn==0.34.0
 watchdog==6.0.0
 websockets==15.0.1
+langchain-text-splitters==0.2.4

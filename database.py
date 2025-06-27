@@ -38,6 +38,19 @@ class AnalysisHistory(Base):
 
 User.analysis_history = relationship("AnalysisHistory", back_populates="user")
 
+class Law(Base):
+    __tablename__ = "laws"
+
+    id = Column(String, primary_key=True, index=True)  # UUID string
+    full_text = Column(Text)
+    summary = Column(Text, index=True)
+
+class Judgement(Base):
+    __tablename__ = "judgements"
+
+    id = Column(String, primary_key=True, index=True)  # UUID string
+    full_text = Column(Text)
+
 def get_db():
     db = SessionLocal()
     try:

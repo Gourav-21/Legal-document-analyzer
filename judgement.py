@@ -1,4 +1,5 @@
 import uuid
+import json
 from typing import List, Dict, Optional
 
 class JudgementStorage:
@@ -20,11 +21,10 @@ class JudgementStorage:
         with open(self.file_path, 'w') as f:
             json.dump(self.judgements, f, indent=4)
 
-    def add_judgement(self, text: str) -> Dict:
-        judgement_id = str(uuid.uuid4())
-        self.judgements[judgement_id] = {"id": judgement_id, "text": text}
+    def add_judgement(self, id: str, full_text: str) -> Dict:
+        self.judgements[id] = {"id": id, "full_text": full_text}
         self._save_judgements()
-        return self.judgements[judgement_id]
+        return self.judgements[id]
 
     def get_all_judgements(self) -> List[Dict]:
         return list(self.judgements.values())
@@ -32,9 +32,9 @@ class JudgementStorage:
     def get_judgement_by_id(self, judgement_id: str) -> Optional[Dict]:
         return self.judgements.get(judgement_id)
 
-    def update_judgement(self, judgement_id: str, text: str) -> Optional[Dict]:
+    def update_judgement(self, judgement_id: str, full_text: str) -> Optional[Dict]:
         if judgement_id in self.judgements:
-            self.judgements[judgement_id]["text"] = text
+            self.judgements[judgement_id]["full_text"] = full_text
             self._save_judgements()
             return self.judgements[judgement_id]
         return None
@@ -47,7 +47,7 @@ class JudgementStorage:
         return False
     
     def format_judgements_for_prompt(self) -> str:
-        formatted_judgements = [f"{i+1}. {judgement['text']}" for i, judgement in enumerate(self.judgements.values())]
+        formatted_judgements = [f"{i+1}. {judgement['full_text']}" for i, judgement in enumerate(self.judgements.values())]
         return "\n\n".join(formatted_judgements)
 
 # Need to import json

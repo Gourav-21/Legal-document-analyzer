@@ -1,22 +1,30 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Optional
 from pydantic import BaseModel
-from judgement import JudgementStorage # Assuming judgement.py is in the parent directory or PYTHONPATH
+from rag_storage import RAGLegalStorage
 
 router = APIRouter()
-judgement_storage = JudgementStorage()
+rag_storage = RAGLegalStorage()
 
 class JudgementText(BaseModel):
     text: str
+    metadata: Optional[Dict] = None
 
 class JudgementResponse(BaseModel):
     id: str
     text: str
+    metadata: Optional[Dict] = None
+    distance: Optional[float] = None
+
+class SearchRequest(BaseModel):
+    query: str
+    n_results: Optional[int] = 5
 
 @router.post("/judgements", response_model=JudgementResponse)
 async def add_judgement(judgement_input: JudgementText):
     try:
-        return judgement_storage.add_judgement(judgement_input.text)
+        judgement_id = rag_storage.add_judgement(judgement_input.text, judgement_input.metadata)
+        return {"id": judgement_id, "text": judgement_input.text, "metadata": judgement_input.metadata}
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -25,21 +33,58 @@ async def add_judgement(judgement_input: JudgementText):
 
 @router.get("/judgements", response_model=List[JudgementResponse])
 async def get_all_judgements():
-    return judgement_storage.get_all_judgements()
+    try:
+        judgements = rag_storage.get_all_judgements()
+        return [JudgementResponse(
+            id=judgement["id"], 
+            text=judgement["text"], 
+            metadata=judgement.get("metadata")
+        ) for judgement in judgements]
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving judgements: {str(e)}"
+        )
+
+@router.post("/judgements/search", response_model=List[JudgementResponse])
+async def search_judgements(search_request: SearchRequest):
+    try:
+        results = rag_storage.search_judgements(search_request.query, search_request.n_results)
+        return [JudgementResponse(
+            id=result["id"], 
+            text=result["text"], 
+            metadata=result.get("metadata"),
+            distance=result.get("distance")
+        ) for result in results]
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error searching judgements: {str(e)}"
+        )
 
 @router.get("/judgements/{judgement_id}", response_model=JudgementResponse)
 async def get_judgement(judgement_id: str):
-    judgement = judgement_storage.get_judgement_by_id(judgement_id)
-    if judgement:
-        return judgement
-    raise HTTPException(status_code=404, detail="Judgement not found")
+    try:
+        judgements = rag_storage.get_all_judgements()
+        judgement = next((j for j in judgements if j["id"] == judgement_id), None)
+        if judgement:
+            return JudgementResponse(
+                id=judgement["id"], 
+                text=judgement["text"], 
+                metadata=judgement.get("metadata")
+            )
+        raise HTTPException(status_code=404, detail="Judgement not found")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving judgement: {str(e)}"
+        )
 
 @router.put("/judgements/{judgement_id}", response_model=JudgementResponse)
 async def update_judgement(judgement_id: str, judgement_input: JudgementText):
     try:
-        updated_judgement = judgement_storage.update_judgement(judgement_id, judgement_input.text)
-        if updated_judgement:
-            return updated_judgement
+        if rag_storage.update_judgement(judgement_id, judgement_input.text, judgement_input.metadata):
+            return {"id": judgement_id, "text": judgement_input.text, "metadata": judgement_input.metadata}
         raise HTTPException(status_code=404, detail="Judgement not found")
     except Exception as e:
         raise HTTPException(
@@ -50,7 +95,7 @@ async def update_judgement(judgement_id: str, judgement_input: JudgementText):
 @router.delete("/judgements/{judgement_id}")
 async def delete_judgement(judgement_id: str):
     try:
-        if judgement_storage.delete_judgement(judgement_id):
+        if rag_storage.delete_judgement(judgement_id):
             return {"message": "Judgement deleted successfully"}
         raise HTTPException(status_code=404, detail="Judgement not found")
     except Exception as e:
