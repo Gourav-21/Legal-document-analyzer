@@ -458,7 +458,7 @@ with tab4:
                 judgement_id = judgement['id']
                 if f"editing_judgement_{judgement_id}" not in st.session_state:
                     st.session_state[f"editing_judgement_{judgement_id}"] = False
-                    st.session_state[f"edited_judgement_text_{judgement_id}"] = judgement["text"]
+                    st.session_state[f"edited_judgement_text_{judgement_id}"] = judgement["full_text"]
                 
                 if st.session_state[f"editing_judgement_{judgement_id}"]:
                     edited_text = st.text_area(
@@ -480,7 +480,7 @@ with tab4:
                 else:
                     st.text_area(
                         "טקסט פסק הדין",
-                        value=judgement["text"],
+                        value=judgement["full_text"],
                         height=100,
                         key=f"display_judgement_text_area_{judgement_id}",
                         disabled=True
@@ -492,7 +492,7 @@ with tab4:
                     if not st.session_state[f"editing_judgement_{judgement_id}"]:
                         if st.button("✏️ ערוך פסק דין", key=f"edit_judgement_button_{judgement_id}", use_container_width=True):
                             st.session_state[f"editing_judgement_{judgement_id}"] = True
-                            st.session_state[f"edited_judgement_text_{judgement_id}"] = judgement["text"]
+                            st.session_state[f"edited_judgement_text_{judgement_id}"] = judgement["full_text"]
                             st.rerun()
                 with judgement_button_cols[1]:
                     if st.button("🗑️ מחק פסק דין", key=f"delete_judgement_button_{judgement_id}", use_container_width=True):
