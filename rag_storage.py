@@ -46,7 +46,7 @@ class RAGLegalStorage:
         )
         
         # Initialize Google Gemini AI for summarization
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.gemini_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
         if self.gemini_api_key:
             try:
                 genai.configure(api_key=self.gemini_api_key)

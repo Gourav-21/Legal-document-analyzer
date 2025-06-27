@@ -22,7 +22,7 @@ load_dotenv()
 class DocumentProcessor:
     def __init__(self):
         # Initialize Gemini AI
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        genai.configure(api_key=os.getenv("GOOGLE_CLOUD_VISION_API_KEY"))
         self.model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Initialize Labor Law Storage
