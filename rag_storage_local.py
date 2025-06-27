@@ -1,3 +1,11 @@
+# Fix for SQLite3 compatibility with ChromaDB on Streamlit Cloud
+import sys
+try:
+    import pysqlite3
+    sys.modules['sqlite3'] = pysqlite3
+except ImportError:
+    pass
+
 import chromadb
 from chromadb.config import Settings
 import uuid

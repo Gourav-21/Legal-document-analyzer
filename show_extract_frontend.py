@@ -1,3 +1,6 @@
+# Fix for SQLite3 compatibility with ChromaDB on Streamlit Cloud
+import sqlite_fix  # This must be imported first
+
 import streamlit as st
 import numpy as np
 from PIL import Image

@@ -1,3 +1,6 @@
+# Fix for SQLite3 compatibility with ChromaDB on Streamlit Cloud
+import sqlite_fix  # This must be imported first
+
 import streamlit as st
 from document_processor_pydantic import DocumentProcessor
 from fastapi import UploadFile
