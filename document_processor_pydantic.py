@@ -196,9 +196,9 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
         context_result = await self.context_agent.run(docs)
 
         # Extract the string data from the result object
-        ai_context = str(context_result.data) if hasattr(context_result, 'data') else str(context_result)
+        rag_context = str(context_result.data) if hasattr(context_result, 'data') else str(context_result)
 
-        print(f"Retrieving laws for context: {ai_context}")
+        print(f"Retrieving laws for context: {rag_context}")
 
         # Retrieve relevant laws and judgements using RAG
         # relevant_laws, relevant_judgements = self.rag_storage.get_relevant_context(
@@ -211,7 +211,7 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
         
         # Build the analysis prompt based on type
         prompt = await self._build_analysis_prompt(
-            analysis_type, documents, ai_context, context
+            analysis_type, documents, rag_context, context
         )
         
         try:
@@ -263,13 +263,13 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
             )
 
     async def _build_analysis_prompt(self, analysis_type: str, documents: Dict, 
-                                   ai_context: str, 
+                                   rag_context: str, 
                                    context: str = None) -> str:
         """Build analysis prompt based on type"""
         
         base_prompt = f"""
 RELEVANT LABOR LAWS and JUDGEMENTS (Retrieved from legal database):
-{ai_context}
+{rag_context}
 
 
 DOCUMENTS PROVIDED FOR ANALYSIS:
