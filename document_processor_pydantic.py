@@ -584,12 +584,20 @@ Please generate the warning letter in Hebrew with the following guidelines:
         print("Extracting text from file:", filename.lower())
         
         try:
-            if filename.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg')):
+            if filename.lower().endswith(('.pdf')):
                 # Pass bytes directly to AgenticDoc
-                print("Extracting text from image or PDF...")
+                print("Extracting text from PDF...")
                 
                 result = parse(content)
                 # Return markdown or structured, as you prefer
+                return result[0].markdown
+            elif filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif','.webp')):
+                # Handle Image files
+                print("Extracting text from Image...")
+                if(compress):
+                    print("Compressing image before extraction...")
+                    content = self._compress_image(content)
+                result = parse(content)
                 return result[0].markdown
             elif filename.lower().endswith('.docx'):
                 doc_file = BytesIO(content)
