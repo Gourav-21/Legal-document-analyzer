@@ -102,30 +102,30 @@ with tab1:
 
                 if payslip_files:
                     payslip_texts = []
-                    for file in payslip_files:
+                    for i, file in enumerate(payslip_files, 1):
                         file_content = file.read()
                         # Use new AgenticDoc-powered method, returns markdown/text
-                        payslip_text = doc_processor._extract_text2(file_content, file.name)
-                        payslip_texts.append(payslip_text)
-                    result["payslip_text"] = "\n--- New Payslip ---\n".join(payslip_texts)
+                        payslip_text = doc_processor._extract_text2(file_content, file.name,True)
+                        payslip_texts.append(f"--- Payslip {i} ---\n{payslip_text}")
+                    result["payslip_text"] = "\n\n".join(payslip_texts)
 
                 if contract_files:
                     contract_texts = []
-                    for file in contract_files:
+                    for i, file in enumerate(contract_files, 1):
                         file_content = file.read()
                         # Use same method for contracts
-                        contract_text = doc_processor._extract_text2(file_content, file.name)
-                        contract_texts.append(contract_text)
-                    result["contract_text"] = "\n--- New Contract ---\n".join(contract_texts)
+                        contract_text = doc_processor._extract_text2(file_content, file.name,True)
+                        contract_texts.append(f"--- Contract {i} ---\n{contract_text}")
+                    result["contract_text"] = "\n\n".join(contract_texts)
 
                 if attendance_files:
                     attendance_texts = []
-                    for file in attendance_files:
+                    for i, file in enumerate(attendance_files, 1):
                         file_content = file.read()
                         # Use same method for attendance files (returns markdown or plain text)
-                        attendance_text = doc_processor._extract_text2(file_content, file.name)
-                        attendance_texts.append(attendance_text)
-                    result["attendance_text"] = "\n--- New Attendance Report ---\n".join(attendance_texts)
+                        attendance_text = doc_processor._extract_text2(file_content, file.name ,True)
+                        attendance_texts.append(f"--- Attendance Report {i} ---\n{attendance_text}")
+                    result["attendance_text"] = "\n\n".join(attendance_texts)
 
                 # Save to session state
                 st.session_state.processed_result = result
