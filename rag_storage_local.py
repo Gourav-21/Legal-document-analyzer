@@ -646,12 +646,31 @@ class RAGLegalStorage:
         
         formatted_laws = []
         for i, law in enumerate(laws):
-            # Include summary if available
-            if 'summary' in law and law['summary']:
-                formatted_laws.append(f"{i+1}. SUMMARY: {law['summary']}\nRELEVANT TEXT: {law['text']}")
+            # Get the text content - prefer full_text from DB, then text from search results
+            law_text = ""
+            if 'full_text' in law and law['full_text']:
+                law_text = law['full_text']
+            elif 'text' in law and law['text']:
+                law_text = law['text']
+            elif 'id' in law:
+                # Fallback: get from storage directly using ID
+                try:
+                    all_laws = self.labor_law_storage.get_all_laws()
+                    db_law = next((l for l in all_laws if l['id'] == law['id']), None)
+                    if db_law:
+                        law_text = db_law['full_text']
+                except Exception as e:
+                    print(f"Error retrieving law text for ID {law['id']}: {e}")
+                    law_text = "Text unavailable"
             else:
-                formatted_laws.append(f"{i+1}. TEXT: {law['text']}")
-        
+                law_text = "Text unavailable"
+            
+            # Include summary if available
+            # if 'summary' in law and law['summary']:
+            #     formatted_laws.append(f"{i+1}. SUMMARY: {law['summary']}\nLAW TEXT: {law_text}")
+            # else:
+            formatted_laws.append(f"{i+1}. LAW TEXT: {law_text}")
+
         return "\n\n".join(formatted_laws)
 
     def format_judgements_for_prompt(self, judgements: List[Dict]) -> str:
@@ -661,8 +680,27 @@ class RAGLegalStorage:
         
         formatted_judgements = []
         for i, judgement in enumerate(judgements):
-            formatted_judgements.append(f"{i+1}. TEXT: {judgement['text']}")
-        
+            # Get the text content - prefer full_text from DB, then text from search results
+            judgement_text = ""
+            if 'full_text' in judgement and judgement['full_text']:
+                judgement_text = judgement['full_text']
+            elif 'text' in judgement and judgement['text']:
+                judgement_text = judgement['text']
+            elif 'id' in judgement:
+                # Fallback: get from storage directly using ID
+                try:
+                    all_judgements = self.judgement_storage.get_all_judgements()
+                    db_judgement = next((j for j in all_judgements if j['id'] == judgement['id']), None)
+                    if db_judgement:
+                        judgement_text = db_judgement['full_text']
+                except Exception as e:
+                    print(f"Error retrieving judgement text for ID {judgement['id']}: {e}")
+                    judgement_text = "Text unavailable"
+            else:
+                judgement_text = "Text unavailable"
+            
+            formatted_judgements.append(f"{i+1}. JUDGEMENT TEXT: {judgement_text}")
+
         return "\n\n".join(formatted_judgements)
 
 

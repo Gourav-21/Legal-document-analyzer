@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Optional
 from pydantic import BaseModel
-from rag_storage import RAGLegalStorage
+from rag_storage_local import RAGLegalStorage
 
 router = APIRouter()
 rag_storage = RAGLegalStorage()

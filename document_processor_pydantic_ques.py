@@ -58,7 +58,7 @@ class DocumentProcessor:
         # Initialize PydanticAI model - use Gemini only
         gemini_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
         if gemini_api_key:
-            self.model = GeminiModel('gemini-2.5-flash', api_key=gemini_api_key)
+            self.model = GeminiModel('gemini-2.5-pro', api_key=gemini_api_key)
             self.model_type = "gemini"
         else:
             raise Exception("GEMINI_API_KEY must be set in environment variables")
@@ -84,8 +84,8 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
             model=self.model,
             result_type=List[str],
             system_prompt="""You are an expert legal document analyzer specializing in Israeli labor law compliance.
-                            Your task is to analyze document content and generate specific search queries to find relevant laws and judgements.
-                            Based on the document content provided, create targeted search queries that will help retrieve the most applicable laws and judgements for analysis.
+                            Your task is to analyze document content and generate specific search queries to find relevant and most applicable laws and judgements.
+                            break those questions into sub-questions that can be used to search for laws and judgements in the database.
                             Return a list of 3-5 specific search queries that focus on the key legal concepts present in the documents.
             """
         )
@@ -197,13 +197,13 @@ Return only the search queries as a list of strings.
         search_queries = question_result.data if hasattr(question_result, 'data') else question_result
         
         # Ensure search_queries is a list
-        if not isinstance(search_queries, list):
-            if isinstance(search_queries, str):
-                # If it's a string, split by lines or use as single query
-                search_queries = [search_queries]
-            else:
-                # Fallback to default queries
-                search_queries = ["שכר מינימום", "שעות עבודה", "זכויות עובדים", "פנסיה"]
+        # if not isinstance(search_queries, list):
+        #     if isinstance(search_queries, str):
+        #         # If it's a string, split by lines or use as single query
+        #         search_queries = [search_queries]
+        #     else:
+        #         # Fallback to default queries
+        #         search_queries = ["שכר מינימום", "שעות עבודה", "זכויות עובדים", "פנסיה"]
         
         print(f"Generated search queries: {search_queries}")
 
@@ -249,6 +249,7 @@ Return only the search queries as a list of strings.
         combined_context = f"{formatted_laws}\n\n{formatted_judgements}"
         print(f"Retrieved {len(unique_laws)} laws and {len(unique_judgements)} judgements")
 
+        print(combined_context)
         # Build the analysis prompt based on type
         prompt = await self._build_analysis_prompt(
             analysis_type, documents, combined_context, context

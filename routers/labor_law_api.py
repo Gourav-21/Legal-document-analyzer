@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Optional
-from rag_storage import RAGLegalStorage
+from rag_storage_local import RAGLegalStorage
 from pydantic import BaseModel
 
 router = APIRouter()

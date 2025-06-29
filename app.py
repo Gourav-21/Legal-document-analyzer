@@ -2,7 +2,7 @@
 import sqlite_fix  # This must be imported first
 
 import streamlit as st
-from document_processor_pydantic import DocumentProcessor
+from document_processor_pydantic_ques import DocumentProcessor
 from fastapi import UploadFile
 from io import BytesIO
 from dotenv import load_dotenv
