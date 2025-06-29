@@ -444,7 +444,7 @@ class RAGLegalStorage:
             for judgement in judgements:
                 formatted_results.append({
                     "id": judgement['id'],
-                    "text": judgement['full_text']
+                    "full_text": judgement['full_text']
                 })
             
             return formatted_results
