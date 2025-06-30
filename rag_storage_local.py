@@ -105,17 +105,23 @@ class RAGLegalStorage:
             
         try:
             prompt = f"""
-            Please create a concise, professional summary of the following legal text in Hebrew. 
-            The summary should:
-            1. Be 2-3 sentences maximum
-            2. Capture the key legal principles and requirements
-            3. Use clear, professional Hebrew language
-            4. Focus on the most important aspects for legal practitioners
-            
+            Analyze the following legal text and create a summary that helps an AI detect violations.
+            The summary should clearly outline the conditions that lead to a violation.
+
+            Guidelines:
+            1.  **Focus on Violations**: What actions are prohibited? What obligations are mandated?
+            2.  **Clarity for AI**: Frame the summary to make it easy to check if a situation violates the law.
+            3.  **Concise**: 2-4 sentences.
+            4.  **Language**: Hebrew.
+
+            Example:
+            - **Original Law Concept**: The law specifies requirements for severance pay.
+            - **Violation-Focused Summary**: A violation occurs if an employer fails to pay severance to an employee who was dismissed after working for at least one year, or who resigned under specific circumstances like worsening of conditions.
+
             Legal Text:
             {law_text}
-            
-            Summary (in Hebrew):
+
+            Violation-Focused Summary (in Hebrew):
             """
             
             response = self.ai_model.generate_content(prompt)
@@ -444,7 +450,7 @@ class RAGLegalStorage:
             for judgement in judgements:
                 formatted_results.append({
                     "id": judgement['id'],
-                    "full_text": judgement['full_text']
+                    "text": judgement['full_text']
                 })
             
             return formatted_results
