@@ -113,6 +113,7 @@ class RAGLegalStorage:
             2.  **Clarity for AI**: Frame the summary to make it easy to check if a situation violates the law.
             3.  **Concise**: 2-4 sentences.
             4.  **Language**: Hebrew.
+            5.  **Direct Output**: Do not add any introductory text. Provide only the summary.
 
             Example:
             - **Original Law Concept**: The law specifies requirements for severance pay.
