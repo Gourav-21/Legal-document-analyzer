@@ -362,9 +362,12 @@ with tab2:
             else:
                 st.warning("אנא הכנס טקסט של חוק לפני הוספה.")
 
-    # Display existing laws
+    # Display existing laws, sorted by created_at descending (most recent first)
     st.subheader("חוקי עבודה קיימים")
     existing_laws = doc_processor.law_storage.get_all_laws()
+    # Sort by created_at descending if available
+    if existing_laws and 'created_at' in existing_laws[0]:
+        existing_laws = sorted(existing_laws, key=lambda x: x.get('created_at', ''), reverse=True)
 
     if not existing_laws:
         st.info("טרם נוספו חוקי עבודה.")
@@ -453,6 +456,9 @@ with tab4:
     try:
         # Assuming doc_processor has a judgement_storage attribute
         existing_judgements = doc_processor.judgement_storage.get_all_judgements()
+        # Sort by created_at descending if available
+        if existing_judgements and 'created_at' in existing_judgements[0]:
+            existing_judgements = sorted(existing_judgements, key=lambda x: x.get('created_at', ''), reverse=True)
 
         if not existing_judgements:
             st.info("טרם נוספו פסקי דין.")

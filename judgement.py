@@ -1,5 +1,6 @@
 import json
 from typing import List, Dict, Optional
+from datetime import datetime
 
 class JudgementStorage:
     def __init__(self, file_path="judgements.json"):
@@ -21,7 +22,7 @@ class JudgementStorage:
             json.dump(self.judgements, f, indent=4)
 
     def add_judgement(self, id: str, full_text: str) -> Dict:
-        self.judgements[id] = {"id": id, "full_text": full_text}
+        self.judgements[id] = {"id": id, "full_text": full_text, "created_at": datetime.now().isoformat()}
         self._save_judgements()
         return self.judgements[id]
 
@@ -34,6 +35,7 @@ class JudgementStorage:
     def update_judgement(self, judgement_id: str, full_text: str) -> Optional[Dict]:
         if judgement_id in self.judgements:
             self.judgements[judgement_id]["full_text"] = full_text
+            self.judgements[judgement_id]["created_at"] = datetime.now().isoformat()
             self._save_judgements()
             return self.judgements[judgement_id]
         return None

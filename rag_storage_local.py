@@ -399,7 +399,8 @@ class RAGLegalStorage:
                 formatted_results.append({
                     "id": law['id'],
                     "text": law['full_text'],
-                    "summary": law['summary']
+                    "summary": law['summary'],
+                    "created_at": law['created_at']
                 })
             
             return formatted_results
@@ -451,7 +452,8 @@ class RAGLegalStorage:
             for judgement in judgements:
                 formatted_results.append({
                     "id": judgement['id'],
-                    "text": judgement['full_text']
+                    "text": judgement['full_text'],
+                    "created_at": judgement['created_at']
                 })
             
             return formatted_results

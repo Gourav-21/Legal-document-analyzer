@@ -23,7 +23,8 @@ class LaborLawStorage:
         law = {
             "id": id,
             "full_text": full_text,
-            "summary": summary
+            "summary": summary,
+            "created_at": datetime.now().isoformat(),
         }
         self.laws.append(law)
         self._save_laws()
@@ -47,6 +48,7 @@ class LaborLawStorage:
                     law["full_text"] = full_text
                 if summary is not None:
                     law["summary"] = summary
+                law["created_at"] = datetime.now().isoformat()
                 self._save_laws()
                 return law
         return None
