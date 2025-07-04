@@ -347,16 +347,22 @@ with tab3:
 
 # Law Management Tab
 with tab2:
+    # Clear the new law input if a law was just added
+    if st.session_state.get("law_added"):
+        st.session_state["new_law_text_area"] = ""
+        st.session_state["law_added"] = False
     st.subheader("📚 ניהול חוקי עבודה")
     
     # Add new law section
     with st.expander("הוסף חוק עבודה חדש", expanded=False):
-        new_law = st.text_area("הכנס טקסט של חוק עבודה חדש", height=150)
+        new_law = st.text_area("הכנס טקסט של חוק עבודה חדש", height=150, key="new_law_text_area")
         if st.button("הוסף חוק", type="primary", key="add_law"):
             if new_law.strip():
                 try:
                     doc_processor.law_storage.add_law(new_law)
                     st.success("החוק נוסף בהצלחה!")
+                    st.session_state["law_added"] = True
+                    st.rerun()
                 except Exception as e:
                     st.error(f"שגיאה בהוספת החוק: {str(e)}")
             else:
@@ -430,6 +436,10 @@ with tab2:
 
 # Judgement Management Tab
 with tab4:
+    # Clear the new judgement input if a judgement was just added
+    if st.session_state.get("judgement_added"):
+        st.session_state["new_judgement_text_area"] = ""
+        st.session_state["judgement_added"] = False
     st.subheader("⚖️ ניהול פסקי דין")
 
     # Add new judgement section
@@ -441,9 +451,8 @@ with tab4:
                     # Assuming doc_processor has a judgement_storage attribute
                     doc_processor.judgement_storage.add_judgement(new_judgement_text)
                     st.success("פסק הדין נוסף בהצלחה!")
-                    # Clear the text area after adding
-                    # st.session_state.new_judgement_text_area = "" 
-                    # st.rerun()
+                    st.session_state["judgement_added"] = True
+                    st.rerun()
                 except AttributeError:
                     st.error("שגיאה: judgement_storage אינו מוגדר ב-doc_processor.")
                 except Exception as e:
