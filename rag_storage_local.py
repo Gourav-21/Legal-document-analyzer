@@ -67,6 +67,9 @@ class RAGLegalStorage:
                 allow_reset=True
             )
         )
+        # chromadb_host = os.getenv("CHROMADB_HOST", "127.0.0.1")
+        # chromadb_port = int(os.getenv("CHROMADB_PORT", "3333"))
+        # self.client = chromadb.HttpClient(host=chromadb_host, port=chromadb_port)
         
         # Initialize OpenAI client for embeddings
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -418,31 +421,6 @@ class RAGLegalStorage:
             print(f"Error getting law summaries: {e}")
             return []
 
-    def get_laws_with_summaries(self, include_summary_in_text: bool = True) -> List[Dict]:
-        """Get all laws with their AI-generated summaries"""
-        try:
-            laws = self.labor_law_storage.get_all_laws()
-            laws_with_summaries = []
-            
-            for law in laws:
-                if law.get('summary') and law['summary'].strip():
-                    law_data = {
-                        "id": law['id'],
-                        "text": law['full_text'],
-                        "summary": law['summary']
-                    }
-                    
-                    # Optionally include summary in the main text for better searchability
-                    if include_summary_in_text:
-                        law_data['combined_text'] = f"SUMMARY: {law['summary']}\n\nFULL TEXT: {law['full_text']}"
-                    
-                    laws_with_summaries.append(law_data)
-                    
-            return laws_with_summaries
-        except Exception as e:
-            print(f"Error getting laws with summaries: {e}")
-            return []
-
     def get_all_judgements(self) -> List[Dict]:
         """Get all judgements from local storage"""
         try:
@@ -521,8 +499,8 @@ class RAGLegalStorage:
             print(f"Error deleting judgement {judgement_id}: {e}")
             return False
 
-    def update_law(self, law_id: str, new_text: str, metadata: Optional[Dict] = None) -> bool:
-        """Update a law in both local storage and vector database"""
+    def update_law(self, law_id: str, new_text: str, metadata: Optional[Dict] = None) -> Optional[str]:
+        """Update a law in both local storage and vector database. Returns the new summary if successful, else None."""
         try:
             # Generate new summary
             new_summary = self.generate_law_summary(new_text)
@@ -531,7 +509,7 @@ class RAGLegalStorage:
             updated_law = self.labor_law_storage.update_law(law_id, new_text, new_summary)
             if not updated_law:
                 print(f"Law with ID {law_id} not found")
-                return False
+                return None
             
             # Delete old chunks from vector database
             try:
@@ -539,7 +517,6 @@ class RAGLegalStorage:
                     where={"law_id": law_id},
                     include=["metadatas"]
                 )
-                
                 if chunk_results['ids']:
                     self.laws_collection.delete(ids=chunk_results['ids'])
             except Exception as ve:
@@ -547,14 +524,10 @@ class RAGLegalStorage:
             
             # Add new chunks to vector database
             chunks = self.text_splitter.split_text(new_text)
-            
             if chunks:
                 embeddings = self.get_embeddings_batch(chunks)
-                
-                # Prepare chunk IDs and metadata
                 chunk_ids = [f"{law_id}_chunk_{i}" for i in range(len(chunks))]
                 chunk_metadatas = []
-                
                 for i, chunk in enumerate(chunks):
                     chunk_metadata = {
                         "type": "law_chunk",
@@ -567,21 +540,17 @@ class RAGLegalStorage:
                     if metadata:
                         chunk_metadata.update(metadata)
                     chunk_metadatas.append(chunk_metadata)
-                
-                # Add updated chunks to vector database
                 self.laws_collection.add(
                     embeddings=embeddings,
                     documents=chunks,
                     metadatas=chunk_metadatas,
                     ids=chunk_ids
                 )
-            
             print(f"✅ Updated law {law_id} with {len(chunks)} new chunks")
-            return True
-            
+            return new_summary
         except Exception as e:
             print(f"Error updating law {law_id}: {e}")
-            return False
+            return None
 
     def update_judgement(self, judgement_id: str, new_text: str, metadata: Optional[Dict] = None) -> bool:
         """Update a judgement in both local storage and vector database"""

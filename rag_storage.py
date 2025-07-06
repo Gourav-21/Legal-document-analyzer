@@ -67,13 +67,17 @@ class RAGLegalStorage:
             self.ai_enabled = False
         
         # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(
-            path=persist_directory,
-            settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=True
-            )
-        )
+        # self.client = chromadb.PersistentClient(
+        #     path=persist_directory,
+        #     settings=Settings(
+        #         anonymized_telemetry=False,
+        #         allow_reset=True
+        #     )
+        # )
+        chromadb_host = os.getenv("CHROMADB_HOST", "127.0.0.1")
+        chromadb_port = int(os.getenv("CHROMADB_PORT", "3333"))
+        self.client = chromadb.HttpClient(host=chromadb_host, port=chromadb_port)
+
         
         # Initialize OpenAI client for embeddings
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -117,17 +121,24 @@ class RAGLegalStorage:
             
         try:
             prompt = f"""
-            Please create a concise, professional summary of the following legal text. 
-            The summary should:
-            1. Be 2-3 sentences maximum
-            2. Capture the key legal principles and requirements
-            3. Use clear, professional language
-            4. Focus on the most important aspects for legal practitioners
-            
+            Analyze the following legal text and create a summary that helps an AI detect violations.
+            The summary should clearly outline the conditions that lead to a violation.
+
+            Guidelines:
+            1.  **Focus on Violations**: What actions are prohibited? What obligations are mandated?
+            2.  **Clarity for AI**: Frame the summary to make it easy to check if a situation violates the law.
+            3.  **Concise**: 2-4 sentences.
+            4.  **Language**: Hebrew.
+            5.  **Direct Output**: Do not add any introductory text. Provide only the summary.
+
+            Example:
+            - **Original Law Concept**: The law specifies requirements for severance pay.
+            - **Violation-Focused Summary**: A violation occurs if an employer fails to pay severance to an employee who was dismissed after working for at least one year, or who resigned under specific circumstances like worsening of conditions.
+
             Legal Text:
             {law_text}
-            
-            Summary:
+
+            Violation-Focused Summary (in Hebrew):
             """
             
             response = self.ai_model.generate_content(prompt)
@@ -417,7 +428,8 @@ class RAGLegalStorage:
                 formatted_results.append({
                     "id": law.id,
                     "text": law.full_text,
-                    "summary": law.summary
+                    "summary": law.summary,
+                    "created_at": law.created_at.isoformat() if law.created_at else None
                 })
             
             return formatted_results
@@ -435,31 +447,6 @@ class RAGLegalStorage:
             print(f"Error getting law summaries: {e}")
             return []
 
-    def get_laws_with_summaries(self, include_summary_in_text: bool = True) -> List[Dict]:
-        """Get all laws with their AI-generated summaries"""
-        try:
-            db_laws = self.db_session.query(Law).filter(Law.summary.isnot(None)).all()
-            laws_with_summaries = []
-            
-            for law in db_laws:
-                if law.summary and law.summary.strip():
-                    law_data = {
-                        "id": law.id,
-                        "text": law.full_text,
-                        "summary": law.summary
-                    }
-                    
-                    # Optionally include summary in the main text for better searchability
-                    if include_summary_in_text:
-                        law_data['combined_text'] = f"SUMMARY: {law.summary}\n\nFULL TEXT: {law.full_text}"
-                    
-                    laws_with_summaries.append(law_data)
-                    
-            return laws_with_summaries
-        except Exception as e:
-            print(f"Error getting laws with summaries: {e}")
-            return []
-
     def get_all_judgements(self) -> List[Dict]:
         """Get all judgements from the database"""
         try:
@@ -469,7 +456,8 @@ class RAGLegalStorage:
             for judgement in db_judgements:
                 formatted_results.append({
                     "id": judgement.id,
-                    "text": judgement.full_text
+                    "text": judgement.full_text,
+                    "created_at": judgement.created_at.isoformat() if judgement.created_at else None
                 })
             
             return formatted_results
@@ -541,46 +529,39 @@ class RAGLegalStorage:
             print(f"Error deleting judgement {judgement_id}: {e}")
             return False
 
-    def update_law(self, law_id: str, new_text: str, metadata: Optional[Dict] = None) -> bool:
-        """Update a law in both database and vector database"""
+    def update_law(self, law_id: str, new_text: str, metadata: Optional[Dict] = None) -> Optional[str]:
+        """Update a law in both local storage and vector database. Returns the new summary if successful, else None."""
         try:
-            # Get existing law from database
+
             db_law = self.db_session.query(Law).filter(Law.id == law_id).first()
             if not db_law:
                 print(f"Law with ID {law_id} not found")
-                return False
+                return None
             
             # Generate new summary
             new_summary = self.generate_law_summary(new_text)
             
-            # Update law in database (simplified schema: id, full_text, summary)
             db_law.full_text = new_text
             db_law.summary = new_summary
-            
             self.db_session.commit()
-            
+
             # Delete old chunks from vector database
             try:
                 chunk_results = self.laws_collection.get(
                     where={"law_id": law_id},
                     include=["metadatas"]
                 )
-                
                 if chunk_results['ids']:
                     self.laws_collection.delete(ids=chunk_results['ids'])
             except Exception as ve:
                 print(f"Warning: Error deleting old law chunks: {ve}")
-            
+
             # Add new chunks to vector database
             chunks = self.text_splitter.split_text(new_text)
-            
             if chunks:
                 embeddings = self.get_embeddings_batch(chunks)
-                
-                # Prepare chunk IDs and metadata
                 chunk_ids = [f"{law_id}_chunk_{i}" for i in range(len(chunks))]
                 chunk_metadatas = []
-                
                 for i, chunk in enumerate(chunks):
                     chunk_metadata = {
                         "type": "law_chunk",
@@ -593,22 +574,18 @@ class RAGLegalStorage:
                     if metadata:
                         chunk_metadata.update(metadata)
                     chunk_metadatas.append(chunk_metadata)
-                
-                # Add updated chunks to vector database
                 self.laws_collection.add(
                     embeddings=embeddings,
                     documents=chunks,
                     metadatas=chunk_metadatas,
                     ids=chunk_ids
                 )
-            
             print(f"✅ Updated law {law_id} with {len(chunks)} new chunks")
-            return True
-            
+            return new_summary
         except Exception as e:
             self.db_session.rollback()
             print(f"Error updating law {law_id}: {e}")
-            return False
+            return None
 
     def update_judgement(self, judgement_id: str, new_text: str, metadata: Optional[Dict] = None) -> bool:
         """Update a judgement in both database and vector database"""
@@ -688,12 +665,17 @@ class RAGLegalStorage:
         
         formatted_laws = []
         for i, law in enumerate(laws):
-            # Include summary if available
-            if 'summary' in law and law['summary']:
-                formatted_laws.append(f"{i+1}. SUMMARY: {law['summary']}\nRELEVANT TEXT: {law['text']}")
+            # Get the text content - prefer full_text from DB, then text from search results
+            law_text = ""
+            if 'full_text' in law and law['full_text']:
+                law_text = law['full_text']
+            elif 'text' in law and law['text']:
+                law_text = law['text']
             else:
-                formatted_laws.append(f"{i+1}. TEXT: {law['text']}")
-        
+                law_text = "Text unavailable"
+            
+            formatted_laws.append(f"{i+1}. LAW TEXT: {law_text}")
+
         return "\n\n".join(formatted_laws)
 
     def format_judgements_for_prompt(self, judgements: List[Dict]) -> str:
@@ -703,7 +685,16 @@ class RAGLegalStorage:
         
         formatted_judgements = []
         for i, judgement in enumerate(judgements):
-            formatted_judgements.append(f"{i+1}. TEXT: {judgement['text']}")
-        
+            # Get the text content - prefer full_text from DB, then text from search results
+            judgement_text = ""
+            if 'full_text' in judgement and judgement['full_text']:
+                judgement_text = judgement['full_text']
+            elif 'text' in judgement and judgement['text']:
+                judgement_text = judgement['text']
+            else:
+                judgement_text = "Text unavailable"
+            
+            formatted_judgements.append(f"{i+1}. JUDGEMENT TEXT: {judgement_text}")
+
         return "\n\n".join(formatted_judgements)
 
