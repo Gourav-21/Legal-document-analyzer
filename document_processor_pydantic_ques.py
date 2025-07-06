@@ -21,7 +21,7 @@ import asyncio
 from agentic_doc.parse import parse
 from judgement import JudgementStorage
 from labour_law import LaborLawStorage
-import nest_asyncio
+# nest_asyncio imported conditionally inside __init__ to avoid uvloop conflicts
 # Load environment variables from .env 
 load_dotenv()
 
@@ -63,7 +63,19 @@ class DocumentProcessor:
         else:
             raise Exception("GEMINI_API_KEY must be set in environment variables")
         # Initialize PydanticAI Agent
-        nest_asyncio.apply()
+        import os
+        # Only apply nest_asyncio if not running under uvloop (e.g., not under uvicorn)
+        _can_patch = True
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if 'uvloop' in str(type(loop)):
+                _can_patch = False
+        except Exception:
+            pass
+        if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
+            import nest_asyncio
+            nest_asyncio.apply()
         self.agent = Agent(
             model=self.model,
             result_type=str,
@@ -78,8 +90,11 @@ You will be provided with:
 Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
 
 Always respond in Hebrew and follow the specific formatting requirements for each analysis type."""        )
-        
-        nest_asyncio.apply()
+
+        # Only apply nest_asyncio for question_agent if not running under uvloop
+        if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
+            import nest_asyncio
+            nest_asyncio.apply()
         self.question_agent = Agent(
             model=self.model,
             result_type=List[str],
@@ -493,30 +508,30 @@ Please generate the warning letter in Hebrew with the following guidelines:
         return """
 🔒 מטרה: צור סיכום קצר וברור של ההפרות בתלושי השכר של העובד.
 📌 כללים מחייבים:
-	1. כתוב בעברית בלבד – אל תשתמש באנגלית בכלל.
-	2. עבור כל חודש הצג את ההפרות בשורות נפרדות, כל שורה בפורמט הבא:
+    1. כתוב בעברית בלבד – אל תשתמש באנגלית בכלל.
+    2. עבור כל חודש הצג את ההפרות בשורות נפרדות, כל שורה בפורמט הבא:
 ❌ [סוג ההפרה בקצרה] – [סכום בש"ח עם ₪, כולל פסיק לאלפים]
 לדוגמה: ❌ לא שולם החזר נסיעות בפברואר 2025 – 250 ₪
-	3. אם יש מספר רכיבי פנסיה (עובד/מעסיק/בריאות) בחודש מסוים – חבר אותם לסכום אחד של פנסיה באותו החודש.
-	4. כל הסכומים יוצגו עם פסיקים לאלפים ועם ₪ בסוף.
-	5. חישוב הסכום הכולל יופיע בשורה נפרדת:
+    3. אם יש מספר רכיבי פנסיה (עובד/מעסיק/בריאות) בחודש מסוים – חבר אותם לסכום אחד של פנסיה באותו החודש.
+    4. כל הסכומים יוצגו עם פסיקים לאלפים ועם ₪ בסוף.
+    5. חישוב הסכום הכולל יופיע בשורה נפרדת:
 💰 סה"כ: [סכום כולל] ₪
-	6. הוסף המלצה בסוף:
+    6. הוסף המלצה בסוף:
 📝 מה לעשות עכשיו:
 פנה/י למעסיק עם דרישה לתשלום הסכומים.
 אם אין מענה – מומלץ לפנות לייעוץ משפטי.
 📍 הנחיות נוספות:
-	• אין לכתוב מספרים בלי הקשר, כל שורה חייבת להיות מלווה בחודש.
-	• מיזוג שורות: אם באותו חודש יש כמה רכיבים של פנסיה – מיזג אותם לשורה אחת.
-	• הסר שורות ללא סכום ברור.
-	• ניסוח פשוט, ללא מינוחים משפטיים, הבהרות או הסברים טכניים.
-	• אין לציין "רכיב עובד", "רכיב מעסיק", "לא הופקד" – במקום זאת כתוב: "לא שולמה פנסיה".
+    • אין לכתוב מספרים בלי הקשר, כל שורה חייבת להיות מלווה בחודש.
+    • מיזוג שורות: אם באותו חודש יש כמה רכיבים של פנסיה – מיזג אותם לשורה אחת.
+    • הסר שורות ללא סכום ברור.
+    • ניסוח פשוט, ללא מינוחים משפטיים, הבהרות או הסברים טכניים.
+    • אין לציין "רכיב עובד", "רכיב מעסיק", "לא הופקד" – במקום זאת כתוב: "לא שולמה פנסיה".
 🎯 פלט רצוי:
-	• שורות מסודרות לפי חודשים
-	• אין כפילויות
-	• סכומים מדויקים בלבד
-	• ניסוח ברור ומובן
-	• עברית בלבד
+    • שורות מסודרות לפי חודשים
+    • אין כפילויות
+    • סכומים מדויקים בלבד
+    • ניסוח ברור ומובן
+    • עברית בלבד
 
 🧪 Example of desired output:
 📢 סיכום ההפרות:
