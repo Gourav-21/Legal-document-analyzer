@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Optional
 from pydantic import BaseModel
-from rag_storage_local import RAGLegalStorage
+from rag_storage import RAGLegalStorage
 
 router = APIRouter()
 rag_storage = RAGLegalStorage()
@@ -15,10 +15,6 @@ class JudgementResponse(BaseModel):
     text: str
     metadata: Optional[Dict] = None
     distance: Optional[float] = None
-
-class SearchRequest(BaseModel):
-    query: str
-    n_results: Optional[int] = 5
 
 @router.post("/judgements", response_model=JudgementResponse)
 async def add_judgement(judgement_input: JudgementText):
@@ -38,28 +34,13 @@ async def get_all_judgements():
         return [JudgementResponse(
             id=judgement["id"], 
             text=judgement["text"], 
+            created_at=judgement['created_at'],
             metadata=judgement.get("metadata")
         ) for judgement in judgements]
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving judgements: {str(e)}"
-        )
-
-@router.post("/judgements/search", response_model=List[JudgementResponse])
-async def search_judgements(search_request: SearchRequest):
-    try:
-        results = rag_storage.search_judgements(search_request.query, search_request.n_results)
-        return [JudgementResponse(
-            id=result["id"], 
-            text=result["text"], 
-            metadata=result.get("metadata"),
-            distance=result.get("distance")
-        ) for result in results]
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error searching judgements: {str(e)}"
         )
 
 @router.get("/judgements/{judgement_id}", response_model=JudgementResponse)
@@ -71,6 +52,7 @@ async def get_judgement(judgement_id: str):
             return JudgementResponse(
                 id=judgement["id"], 
                 text=judgement["text"], 
+                created_at=judgement['created_at'],
                 metadata=judgement.get("metadata")
             )
         raise HTTPException(status_code=404, detail="Judgement not found")
