@@ -11,8 +11,8 @@ import io
 from google.cloud.vision import ImageAnnotatorClient
 import pandas as pd
 from letter_format import LetterFormatStorage
-# from rag_storage import RAGLegalStorage
-from rag_storage_local import RAGLegalStorage
+from rag_storage import RAGLegalStorage
+# from rag_storage_local import RAGLegalStorage
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.models.gemini import GeminiModel
@@ -114,6 +114,7 @@ Based on the document content provided, generate 3-5 specific search queries tha
 Return only the search queries as a list of strings.
 """
             else:
+                print("no law summaries found in the database.")
                 return """
 You are an expert legal document analyzer specializing in Israeli labor law compliance.
 
