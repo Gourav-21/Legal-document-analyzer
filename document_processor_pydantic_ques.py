@@ -1,3 +1,5 @@
+import sqlite_fix  # This must be imported first
+
 from fastapi import UploadFile, HTTPException
 from PIL import Image
 import os
