@@ -63,7 +63,6 @@ class DocumentProcessor:
         else:
             raise Exception("GEMINI_API_KEY must be set in environment variables")
         # Initialize PydanticAI Agent
-        import os
         # Only apply nest_asyncio if not running under uvloop (e.g., not under uvicorn)
         _can_patch = True
         try:
