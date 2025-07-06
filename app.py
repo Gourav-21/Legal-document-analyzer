@@ -1,5 +1,12 @@
 # Fix for SQLite3 compatibility with ChromaDB on Streamlit Cloud
-import sqlite_fix  # This must be imported first
+import sys
+try:
+    import pysqlite3
+    sys.modules['sqlite3'] = pysqlite3
+    print("✅ SQLite3 fix applied in app.py")
+except ImportError:
+    print("⚠️ pysqlite3-binary not available in app.py")
+    import sqlite_fix  # Fallback to sqlite_fix
 
 import streamlit as st
 from document_processor_pydantic_ques import DocumentProcessor

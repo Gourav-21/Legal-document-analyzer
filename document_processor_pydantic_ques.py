@@ -1,5 +1,14 @@
 import sqlite_fix  # This must be imported first
 
+# Apply SQLite3 fix before any other imports that might use ChromaDB
+import sys
+try:
+    import pysqlite3
+    sys.modules['sqlite3'] = pysqlite3
+    print("✅ SQLite3 fix applied in document_processor")
+except ImportError:
+    print("⚠️ pysqlite3-binary not available in document_processor")
+
 from fastapi import UploadFile, HTTPException
 from PIL import Image
 import os

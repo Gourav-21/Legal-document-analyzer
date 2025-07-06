@@ -113,6 +113,7 @@ protobuf==5.29.4
 psycopg==3.2.7
 psycopg-binary==3.2.7
 psycopg-pool==3.2.6
+pysqlite3-binary==0.5.3
 pyarrow==20.0.0
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
