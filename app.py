@@ -392,9 +392,14 @@ with tab2:
                 )
                 if st.button("שמור", key=f"save_{law['id']}"):
                     try:
-                        doc_processor.law_storage.update_law(law["id"], edited_text)
+                        new_summary = doc_processor.law_storage.update_law(law["id"], edited_text)
                         st.session_state[f"editing_{law['id']}"] = False
-                        st.success("החוק עודכן בהצלחה!")
+                        if new_summary:
+                            st.session_state[f"edited_summary_{law['id']}"] = new_summary
+                            st.success("החוק עודכן בהצלחה! הסיכום החדש:")
+                            st.info(new_summary)
+                        else:
+                            st.success("החוק עודכן בהצלחה!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"שגיאה בעדכון החוק: {str(e)}")
