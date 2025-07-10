@@ -307,6 +307,29 @@ with tab1:
                 except Exception as e:
                     st.error(f"שגיאה ביצירת דוח התביעה הסופי: {str(e)}")
 
+            if st.button("דו""ח משולב (מקיף)", type="primary", key="combined_btn"):
+                st.session_state.report_output_title = None
+                st.session_state.report_output_content = None
+                st.session_state.summary_output_content = None
+                st.session_state.last_legal_analysis = None
+                try:
+                    with st.spinner("יוצר דו""ח משולב (מקיף)..."):
+                        result = doc_processor.create_report_sync(
+                            payslip_text=st.session_state.processed_result.get('payslip_text'),
+                            contract_text=st.session_state.processed_result.get('contract_text'),
+                            attendance_text=st.session_state.processed_result.get('attendance_text'),
+                            type="combined",
+                            context=context
+                        )
+                        if result.get('legal_analysis'):
+                            st.session_state.report_output_title = "### דו""ח משולב (מקיף)"
+                            st.session_state.report_output_content = result['legal_analysis']
+                            st.session_state.last_legal_analysis = result['legal_analysis']
+                        else:
+                            st.info("לא התקבל תוכן להצגת הדו""ח המשולב.")
+                except Exception as e:
+                    st.error(f"שגיאה ביצירת הדו""ח המשולב: {str(e)}")
+
         # Display area for the report and its summary
         if st.session_state.get('report_output_title') and st.session_state.get('report_output_content'):
             st.markdown(st.session_state.report_output_title)
