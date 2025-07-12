@@ -99,7 +99,9 @@ You will be provided with:
 
 Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
 
-Always respond in Hebrew and follow the specific formatting requirements for each analysis type."""        )
+Always respond in Hebrew and follow the specific formatting requirements for each analysis type.
+
+CRITICAL: When providing analysis, do NOT output template text or placeholders. Always replace ALL placeholders with real data from the analysis."""        )
 
         # Only apply nest_asyncio for question_agent if not running under uvloop
         if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
@@ -396,24 +398,23 @@ Violation Format Template:
 ---
 
 SUMMARY TABLE:
-After completing the violation analysis, provide a simple summary table:
-
-=== טבלת סיכום הפרות ===
-תלוש/מסמך          | סוג הפרה           | סכום (₪)
-תלוש 1 - 01/2024    | שעות נוספות        | 495
-תלוש 1 - 01/2024    | פנסיה             | 750  
-תלוש 2 - 02/2024    | פנסיה             | 825
---------------------------------
-סה"כ: 2,070 ₪
+After completing the violation analysis, provide a summary table with the following structure:
+- Use the heading: === טבלת סיכום הפרות ===
+- Create columns for: תלוש/מסמך | סוג הפרה | סכום (₪)
+- Add rows with actual data from your analysis
+- End with a total line showing the total amount in ₪
+- Use actual payslip names, violation types, and calculated amounts from your analysis
 
 IMPORTANT:
 - Always Respond in Hebrew
 - Format each violation with proper spacing and line breaks as shown above
 - Analyze each payslip separately and clearly indicate which payslip the violations belong to
 - Separate multiple violations with '---'
-- If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר [X]" in hebrew
+- If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר" followed by the payslip number in hebrew
 - If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
 - Do not include any additional commentary or explanations outside of the violation format
+- DO NOT output template text or placeholders - use real data from the analysis
+- Replace ALL placeholders with actual information from the documents
 """
 
     def _get_profitability_instructions(self) -> str:
@@ -458,15 +459,17 @@ Provide the analysis in the following format:
 [Based on analysis of both successful and unsuccessful cases from the retrieved judgements, provide clear recommendation]
 
 SUMMARY TABLE:
-After completing the profitability analysis, provide a simple summary table:
+After completing the profitability analysis, provide a summary table:
+- Use the heading: === טבלת סיכום כלכלי ===
+- Create columns for: פריט | סכום (₪)
+- Add rows with actual calculated amounts for:
+  * סה"כ פיצוי משוער
+  * עלות עורך דין (30%)
+  * מס (25%)
+- End with: סכום נטו משוער: [calculated amount]
 
-=== טבלת סיכום כלכלי ===
-פריט                    | סכום (₪)
-סה"כ פיצוי משוער         | [AMOUNT]
-עלות עורך דין (30%)      | [AMOUNT]  
-מס (25%)                | [AMOUNT]
---------------------------------
-סכום נטו משוער          | [AMOUNT]
+CRITICAL: Replace ALL placeholders with actual calculated values from the analysis. Do not output template text.
+""""""
 """
 
     def _get_professional_instructions(self) -> str:
@@ -492,16 +495,14 @@ Provide your analysis in the following format, entirely in Hebrew:
 אסמכתאות משפטיות: [רשימת שמות החוק הרלוונטיים מתוך החוקים הישראליים שנמצאו. לדוגמה: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
 
 SUMMARY TABLE:
-After completing the professional analysis, provide a simple summary table:
+After completing the professional analysis, provide a summary table with actual data:
+- Use the heading: === טבלת סיכום הפרות מקצועי ===
+- Create columns for: סוג הפרה | תקופה | סכום (₪)
+- Add rows with actual violation types, periods, and amounts from your analysis
+- End with a total line showing the total amount in ₪
+- Include legal references from retrieved laws
 
-=== טבלת סיכום הפרות מקצועי ===
-סוג הפרה              | תקופה             | סכום (₪)
-שעות נוספות          | נובמבר 2024        | 495
-פנסיה                | נובמבר-מרץ 2025    | 3,525
-החזר נסיעות          | פברואר 2025        | 250
---------------------------------------------
-סה"כ: 4,270 ₪
-אסמכתאות: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה
+CRITICAL: Replace ALL placeholders with actual data from the analysis. Do not output template text.
 """
 
     async def _get_warning_letter_instructions(self) -> str:
@@ -767,26 +768,13 @@ PART 4 - FINAL SUMMARY:
 אסמכתאות משפטיות: [רשימת שמות החוקים הרלוונטיים מתוך החוקים הישראליים שנמצאו. לדוגמה: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
 
 PART 5 - COMPREHENSIVE SUMMARY TABLE:
-Provide a simple comprehensive summary table:
-
-=== טבלת סיכום מקיפה ===
-תלוש/מסמך        | סוג הפרה           | תקופה    | סכום (₪)
-תלוש 1 - 11/2024 | שעות נוספות        | נובמבר   | 495
-תלוש 1 - 11/2024 | פנסיה             | נובמבר   | 750
-תלוש 2 - 12/2024 | פנסיה             | דצמבר    | 1,221
-תלוש 3 - 01/2025 | פנסיה             | ינואר    | 831
-תלוש 4 - 02/2025 | נסיעות            | פברואר   | 250
-תלוש 4 - 02/2025 | פנסיה             | פברואר   | 858
-תלוש 5 - 03/2025 | פנסיה             | מרץ      | 866
-----------------------------------------------------
-סה"כ כולל: 7 הפרות | 5 חודשים | 5,271 ₪
-
-סיכום לפי סוג:
-• שעות נוספות: 495 ₪
-• פנסיה: 4,526 ₪  
-• נסיעות: 250 ₪
-
-אסמכתאות: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה
+Provide a comprehensive summary table with actual data:
+- Use the heading: === טבלת סיכום מקיפה ===
+- Create columns for: תלוש/מסמך | סוג הפרה | תקופה | סכום (₪)
+- Add rows with actual document names, violation types, periods, and amounts
+- End with a total line showing total violations, months, and total amount
+- Include breakdown by violation type with actual amounts
+- Include legal references from retrieved laws
 
 FORMATTING REQUIREMENTS:
 - Always respond in Hebrew
@@ -795,7 +783,8 @@ FORMATTING REQUIREMENTS:
 - Separate multiple violations with '---'
 - Use ש"ח for the table format and ₪ for detailed analysis
 - Include Hebrew numbering (א., ב., ג.) for table format
-- If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר [X]"
+- CRITICAL: Replace ALL placeholders with actual data from the analysis. Do not output template text.
+- If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר" followed by the payslip number
 - If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
 - Do not include any additional commentary outside of the specified format
 """
