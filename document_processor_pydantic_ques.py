@@ -74,6 +74,13 @@ class DocumentProcessor:
         else:
             raise Exception("GEMINI_API_KEY must be set in environment variables")
         # Initialize PydanticAI Agent
+        # Configure Vision API
+        vision_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
+        if not vision_api_key:
+            raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_API_KEY in your .env file")
+        
+        self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
+        self.image_context = {"language_hints": ["he"]} 
         # Only apply nest_asyncio if not running under uvloop (e.g., not under uvicorn)
         _can_patch = True
         try:
@@ -116,13 +123,12 @@ CRITICAL: When providing analysis, do NOT output template text or placeholders. 
                             Return a list of 3-5 specific search queries that focus on the key legal concepts present in the documents.
             """
         )
-        
+
         @self.question_agent.system_prompt
         def dynamic_system_prompt():
             """Dynamic system prompt for question agent"""
             # Get all law summaries from RAG storage
             law_summaries = self.rag_storage.get_all_law_summaries()
-            
             if law_summaries:
                 print(f"Found {len(law_summaries)} law summaries in the database.")
                 summaries_text = "\n".join([f"- {summary}" for summary in law_summaries])
@@ -149,16 +155,60 @@ No law summaries are currently available in the database. Analyze the document c
 
 Return only the search queries as a list of strings.
 """
-        
-        
 
-        # Configure Vision API
-        vision_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
-        if not vision_api_key:
-            raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_API_KEY in your .env file")
+        # --- Review Agent ---
+        if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
+            import nest_asyncio
+            nest_asyncio.apply()
+        self.review_agent = Agent(
+            model=self.model,
+            result_type=str,
+            system_prompt="""
+You are a legal analysis review agent specializing in Israeli labor law.
+You are given:
+1. A set of relevant labor laws (as text)
+2. A set of relevant legal judgements (as text)
+3. An analysis of a legal case (as text)
+Your job is to:
+  - Carefully check if the analysis is correct, complete, and strictly based on the provided laws and judgements.
+  - You must also carefully check that all calculations (amounts, sums, percentages, totals, etc.) are correct and match the provided laws, judgements, and document data. If you find any calculation errors, you must correct them and explain the correction.
+  - If the analysis is correct, return it as-is.
+  - If the analysis is incorrect, incomplete, or not strictly based on the provided laws and judgements, or if any calculation is wrong, generate a corrected analysis that is fully compliant and mathematically accurate.
+Always respond in Hebrew.
+Do not use any external knowledge or make up facts.
+Always cite the provided laws and judgements in your corrections.
+Always check and correct all calculations.
+"""
+        )
+
+
+    async def review_analysis(self, laws: str, judgements: str, analysis: str) -> str:
+            """
+            Review the analysis against the provided laws and judgements. If correct, return as-is. If not, return a corrected analysis.
+            Also, carefully check all calculations (amounts, sums, percentages, totals, etc.) and correct any errors found.
+            """
+            prompt = f"""
+הנך מקבל את החוקים, פסקי הדין, והניתוח המשפטי הבא:
+
+חוקים:
+{laws}
+
+פסקי דין:
+{judgements}
+
+הניתוח המשפטי:
+{analysis}
+
+בדוק בקפידה האם הניתוח נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים (סכומים, אחוזים, סה"כ, טבלאות, וכדומה) נכונים ומדויקים לפי הנתונים שסופקו. אם כן, החזר אותו כפי שהוא. אם לא, תקן אותו כך שיהיה נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים בו נכונים. אל תשתמש בידע חיצוני. תמיד ציין את החוקים ופסקי הדין שסופקו בתיקון. אם תיקנת חישוב, פרט מה היה שגוי ומהו החישוב הנכון.
+השב בעברית בלבד.
+"""
+            try:
+                result = await self.review_agent.run(prompt)
+                return result.data if hasattr(result, 'data') else str(result)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error in review_analysis: {str(e)}")
+
         
-        self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
-        self.image_context = {"language_hints": ["he"]} 
 
     def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, str]:
         """Process uploaded documents and extract text"""
@@ -317,14 +367,20 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
                     # Re-raise the original error if it's not event loop related
                     raise pydantic_error
             
+            # --- Review the analysis for legal and calculation correctness ---
+            try:
+                reviewed_analysis = await self.review_analysis(formatted_laws, formatted_judgements, analysis)
+            except Exception as review_error:
+                print(f"Review agent failed: {review_error}")
+                reviewed_analysis = analysis  # fallback to original if review fails
+
             return DocumentAnalysisResponse(
-                legal_analysis=analysis,
+                legal_analysis=reviewed_analysis,
                 # relevant_laws=unique_laws,
                 # relevant_judgements=unique_judgements,
                 status="success",
                 analysis_type=analysis_type
             )
-            
         except Exception as e:
             raise HTTPException(
                 status_code=500,
