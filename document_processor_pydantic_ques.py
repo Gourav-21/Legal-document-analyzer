@@ -183,11 +183,12 @@ Always check and correct all calculations.
 
 
     async def review_analysis(self, laws: str, judgements: str, analysis: str) -> str:
-            """
-            Review the analysis against the provided laws and judgements. If correct, return as-is. If not, return a corrected analysis.
-            Also, carefully check all calculations (amounts, sums, percentages, totals, etc.) and correct any errors found.
-            """
-            prompt = f"""
+        """
+        Review the analysis against the provided laws and judgements. If correct, return as-is. If not, return a corrected analysis.
+        Also, carefully check all calculations (amounts, sums, percentages, totals, etc.) and correct any errors found.
+        The output must never mention that it was revised, never explain what was fixed, and must simply return the corrected analysis as if it was always correct.
+        """
+        prompt = f"""
 הנך מקבל את החוקים, פסקי הדין, והניתוח המשפטי הבא:
 
 חוקים:
@@ -199,14 +200,15 @@ Always check and correct all calculations.
 הניתוח המשפטי:
 {analysis}
 
-בדוק בקפידה האם הניתוח נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים (סכומים, אחוזים, סה"כ, טבלאות, וכדומה) נכונים ומדויקים לפי הנתונים שסופקו. אם כן, החזר אותו כפי שהוא. אם לא, תקן אותו כך שיהיה נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים בו נכונים. אל תשתמש בידע חיצוני. תמיד ציין את החוקים ופסקי הדין שסופקו בתיקון. אם תיקנת חישוב, פרט מה היה שגוי ומהו החישוב הנכון.
-השב בעברית בלבד.
+בדוק בקפידה האם הניתוח נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים (סכומים, אחוזים, סה"כ, טבלאות, וכדומה) נכונים ומדויקים לפי הנתונים שסופקו. אם כן, החזר אותו כפי שהוא. אם לא, תקן אותו כך שיהיה נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים בו נכונים.
+אסור לך לציין שבוצע תיקון, אסור להסביר מה תוקן, ואסור להזכיר שהניתוח תוקן או שונה. החזר תמיד את הניתוח הסופי בלבד, כאילו היה נכון מלכתחילה.
+אל תשתמש בידע חיצוני. תמיד ציין את החוקים ופסקי הדין שסופקו בתיקון. השב בעברית בלבד.
 """
-            try:
-                result = await self.review_agent.run(prompt)
-                return result.data if hasattr(result, 'data') else str(result)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Error in review_analysis: {str(e)}")
+        try:
+            result = await self.review_agent.run(prompt)
+            return result.data if hasattr(result, 'data') else str(result)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error in review_analysis: {str(e)}")
 
         
 
@@ -424,6 +426,10 @@ ADDITIONAL CONTEXT:
             base_prompt += self._get_claim_instructions()
         elif analysis_type == 'combined':
             base_prompt += self._get_combined_instructions()
+        elif analysis_type == 'violation_count_table':
+            base_prompt += self._get_violation_count_table_instructions()
+        elif analysis_type == 'violations_list':
+            base_prompt += self._get_violations_list_instructions()
         
         return base_prompt
 
@@ -435,42 +441,111 @@ INSTRUCTIONS:
 3. ONLY refer to the judgements and their results provided above for legal analysis - do not use external cases or knowledge.
 4. If no judgements are provided, respond with: "לא קיימות החלטות משפטיות זמינות לניתוח." in Hebrew.
 
+🎯 GOAL: Help the business owner understand exactly what went wrong and where they made mistakes in their employment practices.
+
 For each payslip provided, analyze and identify violations. For each violation found in each payslip, format the response EXACTLY as shown below, with each section on a new line and proper spacing:
 
 Violation Format Template:
 
-[VIOLATION TITLE]
+🚨 [VIOLATION TITLE - What the employer did wrong]
 
-[SPECIFIC VIOLATION DETAILS]
+📋 מה קרה בפועל:
+[Describe exactly what the employer did or failed to do, with specific details from the documents]
 
-[LAW REFERENCE AND YEAR FROM PROVIDED LAWS]
+⚖️ מה היה צריך לקרות לפי החוק:
+[Explain what should have been done according to the law, with specific legal requirements]
 
+📖 בסיס חוקי:
+[LAW REFERENCE AND YEAR FROM PROVIDED LAWS - cite the specific law that was violated]
+
+💰 הנזק הכספי:
+[Calculate the exact financial impact - how much the employee lost due to this violation]
+
+🏛️ תקדימים משפטיים:
 [SIMILAR CASES OR PRECEDENTS FROM PROVIDED JUDGEMENTS](Refer *only* to the retrieved judgements. If a relevant judgement is found, describe the case and its result. If no relevant judgement is found, state "לא נמצאו תקדימים רלוונטיים בפסקי הדין שסופקו.")
 
-[LEGAL IMPLICATIONS BASED ON PROVIDED INFORMATION]
+⚠️ השלכות אפשריות:
+[Explain potential legal consequences and risks for the employer]
 
-[RECOMMENDED ACTIONS]
+✅ מה לעשות כדי לתקן:
+[Specific actionable steps the employer should take to fix this violation and prevent it in the future]
 
 ---
 
-SUMMARY TABLE:
-After completing the violation analysis, provide a summary table with the following structure:
-- Use the heading: === טבלת סיכום הפרות ===
-- Create columns for: תלוש/מסמך | סוג הפרה | סכום (₪)
-- Add rows with actual data from your analysis
-- End with a total line showing the total amount in ₪
-- Use actual payslip names, violation types, and calculated amounts from your analysis
+SUMMARY FOR EMPLOYER:
+After completing the violation analysis, provide a clear summary for the business owner:
+
+=== סיכום למעסיק - איפה טעיתם ומה לעשות ===
+
+📊 טבלת הפרות שזוהו:
+תלוש/מסמך | מה עשיתם לא נכון | כמה זה עולה (₪) | מה לעשות עכשיו
+[Add rows with actual data showing: document name | specific mistake made | financial cost | corrective action needed]
+
+💸 סה"כ עלות הטעויות: [total amount] ₪
+
+🔧 צעדים מיידיים לתיקון:
+1. [First immediate action needed]
+2. [Second immediate action needed]
+3. [Third immediate action needed]
+
+📋 איך למנוע טעויות בעתיד:
+• [Prevention measure 1]
+• [Prevention measure 2]
+• [Prevention measure 3]
 
 IMPORTANT:
 - Always Respond in Hebrew
+- Focus on helping the employer understand their mistakes and how to fix them
+- Use clear, business-friendly language that explains the "why" behind each violation
 - Format each violation with proper spacing and line breaks as shown above
 - Analyze each payslip separately and clearly indicate which payslip the violations belong to
 - Separate multiple violations with '---'
 - If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר" followed by the payslip number in hebrew
 - If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו." in hebrew
-- Do not include any additional commentary or explanations outside of the violation format
 - DO NOT output template text or placeholders - use real data from the analysis
 - Replace ALL placeholders with actual information from the documents
+- Make it clear to the employer what they did wrong and how to prevent it happening again
+"""
+
+    def _get_violations_list_instructions(self) -> str:
+        return """
+CRITICAL INSTRUCTIONS - FOLLOW EXACTLY:
+
+You MUST respond with ONLY the format below. NO additional text, explanations, analysis, or commentary.
+
+If violations found, use EXACTLY this format:
+
+**הפרות שזוהו:**
+
+• [הפרה קצרה] - [חוק]
+• [הפרה קצרה] - [חוק]
+• [הפרה קצרה] - [חוק]
+
+If NO violations found, respond ONLY with: "לא נמצאו הפרות"
+
+ABSOLUTE RESTRICTIONS:
+❌ NO "Legal analysis" headers
+❌ NO explanations or breakdowns  
+❌ NO calculations or formulas
+❌ NO "Analysis of the violation" sections
+❌ NO "method of calculating" text
+❌ NO English words
+❌ NO additional paragraphs
+❌ NO template text like [Violation Title]
+
+✅ ONLY Hebrew
+✅ ONLY the exact format above
+✅ Maximum 4 violations
+✅ Each violation = ONE short line
+
+EXAMPLE of correct output:
+**הפרות שזוהו:**
+
+• לא שולם שכר מינימום - חוק שכר מינימום
+• לא שולמו שעות נוספות - חוק שעות עבודה ומנוחה
+• לא הופקדה פנסיה - צו הרחבה פנסיה
+
+If you write ANYTHING beyond this format, you FAILED.
 """
 
     def _get_profitability_instructions(self) -> str:
@@ -843,6 +918,31 @@ FORMATTING REQUIREMENTS:
 - If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר" followed by the payslip number
 - If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
 - Do not include any additional commentary outside of the specified format
+"""
+
+    def _get_violation_count_table_instructions(self) -> str:
+        return """
+INSTRUCTIONS:
+Analyze the provided documents and identify potential labor law violations, based *exclusively on the retrieved LABOR LAWS and JUDGEMENTS*.
+Return ONLY a summary table in Hebrew, with NO additional analysis, commentary, or template text. Do not include any explanations, recommendations, or placeholders.
+
+Provide a comprehensive summary table with actual data:
+- Use the heading: === טבלת סיכום מקיפה ===
+- Create columns for: תלוש/מסמך | סוג הפרה | תקופה | סכום (₪) | מספר הפרות
+- Add rows with actual document names, violation types, periods, amounts, and the count of each violation type per document
+- For each violation type, calculate and display the total amount for that violation type across all documents, and the total count of documents/slips affected
+- For each violation type, explicitly state how many documents/slips had that violation (e.g., "6 מתוך 10 תלושים נמצאה הפרה של אי תשלום פנסיה")
+- End with a total line showing total violations, months, and total amount
+- Include a breakdown by violation type, showing the total count and total amount for each type of violation
+- All amount calculations must be thorough and accurate: sum the amounts for each violation type, each document, and overall totals. Do not estimate or round; use the actual amounts found in the analysis.
+- Include legal references from retrieved laws
+
+Formatting requirements:
+- Always respond in Hebrew
+- Use actual violation types, counts, and amounts from the analysis
+- Do not output any template text or placeholders
+- Do not include any additional commentary or explanations
+- If no violations are found, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
 """
 
     def _extract_text2(self, content: bytes, filename: str, compress: bool = False) -> str:

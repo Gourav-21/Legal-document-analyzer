@@ -148,7 +148,7 @@ with tab1:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("דוח ניתוח משפטי", type="primary", key="report_btn"):
+            if st.button("דוח המעסיק", type="primary", key="report_btn"):
                 st.session_state.report_output_title = None
                 st.session_state.report_output_content = None
                 st.session_state.summary_output_content = None
@@ -189,6 +189,32 @@ with tab1:
                             st.session_state.last_legal_analysis = result['legal_analysis']
                 except Exception as e:
                     st.error(f"שגיאה בניתוח: {str(e)}")
+                    
+                    # Button for violation count table
+            if st.button("טבלת הפרות", type="primary", key="violation_count_btn"):
+                st.session_state.report_output_title = None
+                st.session_state.report_output_content = None
+                st.session_state.summary_output_content = None
+                st.session_state.last_legal_analysis = None
+                try:
+                    with st.spinner("יוצר טבלת ספירת הפרות..."):
+                        result = doc_processor.create_report_sync(
+                            payslip_text=st.session_state.processed_result.get('payslip_text'),
+                            contract_text=st.session_state.processed_result.get('contract_text'),
+                            attendance_text=st.session_state.processed_result.get('attendance_text'),
+                            type="violation_count_table",
+                            context=context
+                        )
+                        if result.get('legal_analysis'):
+                            st.session_state.report_output_title = "### טבלת ספירת הפרות"
+                            st.session_state.report_output_content = result['legal_analysis']
+                            st.session_state.last_legal_analysis = result['legal_analysis']
+                        else:
+                            st.info("לא התקבל תוכן להצגת טבלת ספירת הפרות.")
+                except Exception as e:
+                    st.error(f"שגיאה ביצירת טבלת ספירת הפרות: {str(e)}")
+
+
         
         with col2:
             if st.button("הכן תביעה", type="primary", key="claim_btn"):
@@ -220,26 +246,50 @@ with tab1:
                 except Exception as e:
                     st.error(f"שגיאה בהכנת התביעה: {str(e)}")
 
-            if st.button("ניתוח מקצועי", type="primary", key="professional_btn"):
+            # Button for violations list only
+            if st.button("רשימת הפרות", type="primary", key="violations_list_btn"):
                 st.session_state.report_output_title = None
                 st.session_state.report_output_content = None
                 st.session_state.summary_output_content = None
                 st.session_state.last_legal_analysis = None
                 try:
-                    with st.spinner("מבצע ניתוח מקצועי..."):
+                    with st.spinner("יוצר רשימת הפרות..."):
                         result = doc_processor.create_report_sync(
                             payslip_text=st.session_state.processed_result.get('payslip_text'),
                             contract_text=st.session_state.processed_result.get('contract_text'),
                             attendance_text=st.session_state.processed_result.get('attendance_text'),
-                            type="professional",
+                            type="violations_list",
                             context=context
                         )
                         if result.get('legal_analysis'):
-                            st.session_state.report_output_title = "### תוצאות ניתוח מקצועי"
+                            st.session_state.report_output_title = "### רשימת הפרות שזוהו"
                             st.session_state.report_output_content = result['legal_analysis']
                             st.session_state.last_legal_analysis = result['legal_analysis']
+                        else:
+                            st.info("לא התקבל תוכן להצגת רשימת ההפרות.")
                 except Exception as e:
-                    st.error(f"שגיאה בניתוח: {str(e)}")
+                    st.error(f"שגיאה ביצירת רשימת ההפרות: {str(e)}")
+                    
+            # if st.button("ניתוח מקצועי", type="primary", key="professional_btn"):
+            #     st.session_state.report_output_title = None
+            #     st.session_state.report_output_content = None
+            #     st.session_state.summary_output_content = None
+            #     st.session_state.last_legal_analysis = None
+            #     try:
+            #         with st.spinner("מבצע ניתוח מקצועי..."):
+            #             result = doc_processor.create_report_sync(
+            #                 payslip_text=st.session_state.processed_result.get('payslip_text'),
+            #                 contract_text=st.session_state.processed_result.get('contract_text'),
+            #                 attendance_text=st.session_state.processed_result.get('attendance_text'),
+            #                 type="professional",
+            #                 context=context
+            #             )
+            #             if result.get('legal_analysis'):
+            #                 st.session_state.report_output_title = "### תוצאות ניתוח מקצועי"
+            #                 st.session_state.report_output_content = result['legal_analysis']
+            #                 st.session_state.last_legal_analysis = result['legal_analysis']
+            #     except Exception as e:
+            #         st.error(f"שגיאה בניתוח: {str(e)}")
                     
             if st.button("מכתב התראה", type="primary", key="warning_letter_btn"):
                 st.session_state.report_output_title = None
