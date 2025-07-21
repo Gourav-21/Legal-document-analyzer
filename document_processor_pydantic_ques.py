@@ -25,8 +25,8 @@ from letter_format import LetterFormatStorage
 from rag_storage import RAGLegalStorage
 # from rag_storage_local import RAGLegalStorage
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.settings import ModelSettings
 from pydantic import BaseModel
 import asyncio
 from agentic_doc.parse import parse
@@ -68,8 +68,10 @@ class DocumentProcessor:
         
         # Initialize PydanticAI model - use Gemini only
         gemini_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
+        # Use ModelSettings to set temperature to 0.0 (deterministic output)
+        model_settings = ModelSettings(temperature=0.0)
         if gemini_api_key:
-            self.model = GeminiModel('gemini-2.5-pro', api_key=gemini_api_key, temperature=0)
+            self.model = GeminiModel('gemini-2.5-pro', api_key=gemini_api_key)
             self.model_type = "gemini"
         else:
             raise Exception("GEMINI_API_KEY must be set in environment variables")
@@ -108,7 +110,8 @@ Your analysis must be based STRICTLY on the provided laws and judgements. Do not
 
 Always respond in Hebrew and follow the specific formatting requirements for each analysis type.
 
-CRITICAL: When providing analysis, do NOT output template text or placeholders. Always replace ALL placeholders with real data from the analysis."""        )
+CRITICAL: When providing analysis, do NOT output template text or placeholders. Always replace ALL placeholders with real data from the analysis.""",
+        )
 
         # Only apply nest_asyncio for question_agent if not running under uvloop
         if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
@@ -205,7 +208,7 @@ Always check and correct all calculations.
 אל תשתמש בידע חיצוני. תמיד ציין את החוקים ופסקי הדין שסופקו בתיקון. השב בעברית בלבד.
 """
         try:
-            result = await self.review_agent.run(prompt)
+            result = await self.review_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
             return result.data if hasattr(result, 'data') else str(result)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error in review_analysis: {str(e)}")
@@ -338,7 +341,7 @@ Always check and correct all calculations.
         try:
             # Generate analysis using PydanticAI
             try:
-                result = await self.agent.run(prompt)
+                result = await self.agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
                 analysis = result.data
             except Exception as pydantic_error:
                 # If PydanticAI fails, check if it's an event loop issue
@@ -363,7 +366,7 @@ Your analysis must be based STRICTLY on the provided laws and judgements. Do not
 Always respond in Hebrew and follow the specific formatting requirements for each analysis type."""
                     )
                       # Try the request again with the fresh agent
-                    result = await temp_agent.run(prompt)
+                    result = await temp_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
                     analysis = result.data
                 else:
                     # Re-raise the original error if it's not event loop related
