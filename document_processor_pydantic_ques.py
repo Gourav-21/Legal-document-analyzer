@@ -69,7 +69,7 @@ class DocumentProcessor:
         # Initialize PydanticAI model - use Gemini only
         gemini_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
         if gemini_api_key:
-            self.model = GeminiModel('gemini-2.5-pro', api_key=gemini_api_key)
+            self.model = GeminiModel('gemini-2.5-pro', api_key=gemini_api_key, temperature=0)
             self.model_type = "gemini"
         else:
             raise Exception("GEMINI_API_KEY must be set in environment variables")
