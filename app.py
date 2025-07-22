@@ -197,7 +197,7 @@ with tab1:
                 st.session_state.summary_output_content = None
                 st.session_state.last_legal_analysis = None
                 try:
-                    with st.spinner("יוצר טבלת ספירת הפרות..."):
+                    with st.spinner("יוצר טבלת הפרות..."):
                         result = doc_processor.create_report_sync(
                             payslip_text=st.session_state.processed_result.get('payslip_text'),
                             contract_text=st.session_state.processed_result.get('contract_text'),
@@ -206,7 +206,7 @@ with tab1:
                             context=context
                         )
                         if result.get('legal_analysis'):
-                            st.session_state.report_output_title = "### טבלת ספירת הפרות"
+                            st.session_state.report_output_title = "### טבלת הפרות"
                             st.session_state.report_output_content = result['legal_analysis']
                             st.session_state.last_legal_analysis = result['legal_analysis']
                         else:

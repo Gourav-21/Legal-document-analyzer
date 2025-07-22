@@ -185,31 +185,57 @@ Always check and correct all calculations.
         )
 
 
-    async def review_analysis(self, laws: str, judgements: str, analysis: str) -> str:
+    async def review_analysis(self, laws: str, judgements: str, analysis: str, documents: Dict[str, str], context: str) -> str:
         """
         Review the analysis against the provided laws and judgements. If correct, return as-is. If not, return a corrected analysis.
         Also, carefully check all calculations (amounts, sums, percentages, totals, etc.) and correct any errors found.
         The output must never mention that it was revised, never explain what was fixed, and must simply return the corrected analysis as if it was always correct.
         """
+        print("Reviewing analysis against provided laws and judgements...")
         prompt = f"""
 הנך מקבל את החוקים, פסקי הדין, והניתוח המשפטי הבא:
 
-חוקים:
+📄 חוקים:
 {laws}
 
-פסקי דין:
+📚 פסקי דין:
 {judgements}
 
-הניתוח המשפטי:
+📑 ניתוח משפטי:
 {analysis}
 
-בדוק בקפידה האם הניתוח נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים (סכומים, אחוזים, סה"כ, טבלאות, וכדומה) נכונים ומדויקים לפי הנתונים שסופקו. אם כן, החזר אותו כפי שהוא. אם לא, תקן אותו כך שיהיה נכון, שלם, ומבוסס אך ורק על החוקים ופסקי הדין שסופקו, ושהחישובים בו נכונים.
-אסור לך לציין שבוצע תיקון, אסור להסביר מה תוקן, ואסור להזכיר שהניתוח תוקן או שונה. החזר תמיד את הניתוח הסופי בלבד, כאילו היה נכון מלכתחילה.
-אל תשתמש בידע חיצוני. תמיד ציין את החוקים ופסקי הדין שסופקו בתיקון. השב בעברית בלבד.
+🧾 מסמכים שסופקו לבדיקה:
+{ "\n\n".join([f"{doc_type.upper()} CONTENT:\n{content}" for doc_type, content in documents.items()]) }
+
+🔍 הקשר נוסף:
+{context}
+
+🔍 הנחיות לבדיקה:
+
+1. בדוק בקפידה האם הניתוח **נכון, שלם, ומבוסס אך ורק** על:
+   - החוקים שסופקו
+   - פסקי הדין שסופקו
+   - המסמכים שסופקו (תלוש שכר, חוזה עבודה, דוח נוכחות)
+2. אין להשתמש בידע כללי או חיצוני, ואין להניח מידע שאינו מופיע במפורש במסמכים.
+3. אין להעתיק או לעשות שימוש בערכים מהחוקים כדוגמה (כגון 6000 ₪, 186 שעות, 5 ימי מחלה), אלא אם הם מופיעים במפורש במסמכים.
+4. אם לא מצוינים נתונים מפורשים (כמו שעות נוספות, ימי מחלה, סכום שכר מינימום), יש להניח **שאין עבירה**, ואין לדווח על הפרה או לבצע חישובים משוערים.
+5. כל החישובים (סכומים, אחוזים, טבלאות) חייבים להיות מדויקים ולבוסס אך ורק על הערכים המופיעים במסמכים שסופקו.
+6. יש לוודא שהמסקנות המשפטיות תואמות את המסמכים ואת החוק, ללא שגיאות, וללא חריגות או תוספות לא מבוססות.
+
+🛠 אם הניתוח תקין – החזר אותו כפי שהוא.  
+🛠 אם יש בו שגיאות – תקן אותו כך שיהיה מדויק, מבוסס אך ורק על המסמכים, החוקים ופסקי הדין שסופקו.  
+
+
+- לציין שבוצע תיקון.
+- להסביר מה שונה.
+- להזכיר שהניתוח תוקן או נערך מחדש.
+
+✅ **יש להחזיר תמיד את הניתוח הסופי בלבד, בעברית מלאה וללא כל הערה.**
+
 """
         try:
             result = await self.review_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
-            return result.data if hasattr(result, 'data') else str(result)
+            return result.data if hasattr(result, 'data') else str(result) + "\n\n analysis data " + analysis
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error in review_analysis: {str(e)}")
 
@@ -374,7 +400,8 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
             
             # --- Review the analysis for legal and calculation correctness ---
             try:
-                reviewed_analysis = await self.review_analysis(formatted_laws, formatted_judgements, analysis)
+                reviewed_analysis = await self.review_analysis(formatted_laws, formatted_judgements, analysis, documents,context)
+                print("Review agent completed successfully.")
             except Exception as review_error:
                 print(f"Review agent failed: {review_error}")
                 reviewed_analysis = analysis  # fallback to original if review fails
@@ -858,35 +885,43 @@ After completing the claim draft, provide a simple summary table:
 
     def _get_combined_instructions(self) -> str:
         return """
-COMBINED COMPREHENSIVE ANALYSIS INSTRUCTIONS:
+COMPREHENSIVE ANALYSIS INSTRUCTIONS:
+
+📌 OVERVIEW
+You are analyzing employee documents(payslips, employment contracts, and attendance records) for legal violations based **only** on the provided labor laws and judgements. Do **not** use any default knowledge, assumptions, or examples from the law unless explicitly confirmed in the payslip.
+and explain step by step your thought process, calculations, and legal references.
+labor laws and judgements are different from employee documents dont use example values from the legal texts or examples. use only real data from the documents provided.
 
 PART 1 - VIOLATION IDENTIFICATION AND ANALYSIS:
+
 1. If no labor laws are provided, respond with: "אין חוקים לעבודה זמינים לניתוח התאמה." in Hebrew.
-2. If labor laws exist, analyze the documents ONLY against the provided laws.
-3. ONLY refer to the judgements and their results provided above for legal analysis - do not use external cases or knowledge.
-4. If no judgements are provided, respond with: "לא קיימות החלטות משפטיות זמינות לניתוח." in Hebrew.
+2. If labor laws exist, analyze the payslip ONLY against the laws provided.
+3. Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
+4. Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
+5. If no judgements are provided, respond with: "לא קיימות החלטות משפטיות זמינות לניתוח." in Hebrew.
+
+🚫 VERY IMPORTANT:
+If the document does not provide exact overtime hours, exact sick days, or absence dates — you MUST assume the employee did not exceed limits or qualify for sick pay.
+Do not infer or estimate violations without clear proof in the payslip.
 
 PART 2 - DETAILED PROFESSIONAL ANALYSIS FORMAT:
-For each violation found, provide a detailed professional analysis with monetary calculations:
+
+For each violation found, provide the following, using actual values from the document:
 
 הפרה: [כותרת ההפרה]
-[תיאור מפורט של ההפרה, כולל תאריכים רלוונטיים, שעות עבודה, שכר שעתי וחישובים, בהתבסס אך ורק על החוקים הישראליים שנמצאו והמסמכים שסופקו.
-דוגמה: העובד עבד X שעות נוספות בין [חודש שנה] ל-[חודש שנה]. לפי שכר שעתי בסיסי של [שכר] ₪ ושיעורי תשלום שעות נוספות ([שיעור1]% עבור X השעות הראשונות, [שיעור2]% לאחר מכן) כפי שמופיע בחוקי העבודה שנמצאו, העובד היה זכאי ל-[סכום] ₪ לחודש. בפועל קיבל רק [סכום שקיבל] ₪ למשך X חודשים ו-[סכום] ₪ בחודש [חודש].]
+[תיאור מפורט של ההפרה, כולל תאריכים רלוונטיים, שעות עבודה בפועל, שכר שעתי, ימי מחלה מאושרים וכדומה. התבסס רק על הנתונים הקיימים בתלוש, ובאופן בלעדי על החוקים שהוצגו.]
 
 [הפניה לחוק הרלוונטי ושנה מתוך החוקים שסופקו]
 
-[תקדימים דומים או פסיקות מתוך פסקי הדין שסופקו](התייחס *רק* לפסקי הדין שנמצאו. אם נמצא פסק דין רלוונטי, תאר את המקרה ותוצאתו. אם לא נמצאו תקדימים רלוונטיים, ציין "לא נמצאו תקדימים רלוונטיים בפסקי הדין שסופקו.")
+[אם קיימים – תאר תקדימים משפטיים מתוך פסקי הדין שסופקו. אם אין – כתוב "לא נמצאו תקדימים רלוונטיים בפסקי הדין שסופקו."]
 
-[השלכות משפטיות על בסיס המידע שסופק]
+[השלכות משפטיות ופעולות מומלצות]
 
-[פעולות מומלצות]
-
-סה"כ חוב להפרה זו: [סכום ההפרש עבור הפרה זו] ₪
+סה"כ חוב להפרה זו: [סכום] ₪
 
 ---
 
 PART 3 - ORGANIZED TABLE FORMAT BY DOCUMENT:
-After completing the detailed analysis, organize all violations by document in the following format:
 
 רשימת תביעות מסודרת לפי מסמך:
 
@@ -894,33 +929,50 @@ After completing the detailed analysis, organize all violations by document in t
 א. סכום של [amount] ש"ח עבור [תיאור קצר של ההפרה].
 ב. סכום של [amount] ש"ח עבור [תיאור קצר של ההפרה].
 
-תלוש שכר מס' [מספר] – [חודש/שנה]:
-א. סכום של [amount] ש"ח עבור [תיאור קצר של ההפרה].
+---
 
 PART 4 - FINAL SUMMARY:
-סה"כ תביעה משפטית (לא כולל ריבית): [הסכום הכולל לתביעה מכלל ההפרות] ₪  
-אסמכתאות משפטיות: [רשימת שמות החוקים הרלוונטיים מתוך החוקים הישראליים שנמצאו. לדוגמה: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
+
+סה"כ תביעה משפטית (לא כולל ריבית): [סכום כולל] ₪  
+אסמכתאות משפטיות: [רשימת שמות החוקים הרלוונטיים מתוך החוקים שסופקו]
+
+---
 
 PART 5 - COMPREHENSIVE SUMMARY TABLE:
-Provide a comprehensive summary table with actual data:
-- Use the heading: === טבלת סיכום מקיפה ===
-- Create columns for: תלוש/מסמך | סוג הפרה | תקופה | סכום (₪)
-- Add rows with actual document names, violation types, periods, and amounts
-- End with a total line showing total violations, months, and total amount
-- Include breakdown by violation type with actual amounts
-- Include legal references from retrieved laws
 
-FORMATTING REQUIREMENTS:
+=== טבלת סיכום מקיפה ===
+
+Create columns:
+- תלוש/מסמך
+- סוג הפרה
+- תקופה
+- סכום (₪)
+
+Add rows using actual data per document and violation.
+
+🚨 TOTAL LINE:
+Show total number of violations, total documents, and total amount claimed.
+
+🔍 Breakdown by violation type:
+- Total number of documents where each violation occurred
+- Total amount per violation type
+
+📘 Legal references:
+List names of all laws used in calculations.
+
+---
+
+⚠️ FORMATTING & ACCURACY RULES:
+
 - Always respond in Hebrew
-- Use proper spacing and line breaks as shown
-- Analyze each payslip separately and clearly indicate which payslip violations belong to
-- Separate multiple violations with '---'
-- Use ש"ח for the table format and ₪ for detailed analysis
-- Include Hebrew numbering (א., ב., ג.) for table format
-- CRITICAL: Replace ALL placeholders with actual data from the analysis. Do not output template text.
-- If no violations are found against the provided laws in a payslip, respond with: "לא נמצאו הפרות בתלוש מספר" followed by the payslip number
-- If no violations are found in any payslip, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
-- Do not include any additional commentary outside of the specified format
+- NEVER use sample values or formulas from laws directly
+- Use only data provided in the payslip, employment contracts, and attendance records
+- Replace ALL placeholders with actual values
+- Do not hallucinate sick days, overtime hours, or absences
+- If no violations found for a payslip, write:
+  "לא נמצאו הפרות בתלוש מספר [X]"
+- If no violations in any payslip, write:
+  "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
 """
 
     def _get_violation_count_table_instructions(self) -> str:
