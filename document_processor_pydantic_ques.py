@@ -108,6 +108,15 @@ You will be provided with:
 
 Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
 
+🚫 VERY IMPORTANT:
+- Read the document carefully and remember its contents like wage per hour, working hours, etc. and Do not recalculate data like wages per hour, sick days, etc. unless the document provides exact values.
+- Do not infer or estimate violations without clear proof in the payslip.
+- Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
+- Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
+- Do not hallucinate sick days, overtime hours, or absences
+- think step by step and analyze the documents carefully. do not rush to conclusions.
+- while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
+
 Always respond in Hebrew and follow the specific formatting requirements for each analysis type.
 
 CRITICAL: When providing analysis, do NOT output template text or placeholders. Always replace ALL placeholders with real data from the analysis.""",
@@ -172,11 +181,25 @@ You are given:
 1. A set of relevant labor laws (as text)
 2. A set of relevant legal judgements (as text)
 3. An analysis of a legal case (as text)
+4. A set of relevant employee documents (as text)
+5. Additional context or information (as text)
 Your job is to:
   - Carefully check if the analysis is correct, complete, and strictly based on the provided laws and judgements.
+  - Carefully check the documents and laws and judgements and see if the analysis is missing any important legal points or if it contains any errors or is missing any violation.
+  - Carefully check if the analysis is based only on the provided laws and judgements and documents and not assuming any external knowledge or making up facts.
   - You must also carefully check that all calculations (amounts, sums, percentages, totals, etc.) are correct and match the provided laws, judgements, and document data. If you find any calculation errors, you must correct them and explain the correction.
   - If the analysis is correct, return it as-is.
   - If the analysis is incorrect, incomplete, or not strictly based on the provided laws and judgements, or if any calculation is wrong, generate a corrected analysis that is fully compliant and mathematically accurate.
+  
+  🚫 VERY IMPORTANT:
+- Do not recalculate data like wages per hour, overtime hours, sick days, etc. unless the document provides exact values.
+- Do not infer or estimate violations without clear proof in the payslip.
+- Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
+- Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
+- Do not hallucinate sick days, overtime hours, or absences
+- think step by step and analyze the documents carefully. do not rush to conclusions.
+- while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
+
 Always respond in Hebrew.
 Do not use any external knowledge or make up facts.
 Always cite the provided laws and judgements in your corrections.
@@ -235,7 +258,7 @@ Always check and correct all calculations.
 """
         try:
             result = await self.review_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
-            return result.data if hasattr(result, 'data') else str(result) + "\n\n analysis data " + analysis
+            return result.data if hasattr(result, 'data') else str(result) 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error in review_analysis: {str(e)}")
 
@@ -300,7 +323,11 @@ Always check and correct all calculations.
             
         # Pass the documents to the question agent to generate search queries
         docs = "\n\n".join([f"{doc_type.upper()} CONTENT:\n{content}" for doc_type, content in documents.items()])
-        question_result = await self.question_agent.run(docs)
+        try:
+            question_result = await self.question_agent.run(docs)
+        except Exception as e:
+            print(f"Error generating search queries: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error generating search queries: {str(e)}")
 
         # Extract the search queries from the result object
         search_queries = question_result.data if hasattr(question_result, 'data') else question_result
@@ -389,6 +416,16 @@ You will be provided with:
 
 Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
 
+🚫 VERY IMPORTANT:
+- Read the document carefully and remember its contents like wage per hour, working hours, etc. and Do not recalculate data like wages per hour, sick days, etc. unless the document provides exact values.
+- Do not infer or estimate violations without clear proof in the payslip.
+- Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
+- Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
+- Do not hallucinate sick days, overtime hours, or absences
+- think step by step and analyze the documents carefully. do not rush to conclusions.
+- while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
+
+
 Always respond in Hebrew and follow the specific formatting requirements for each analysis type."""
                     )
                       # Try the request again with the fresh agent
@@ -397,7 +434,8 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
                 else:
                     # Re-raise the original error if it's not event loop related
                     raise pydantic_error
-            
+            print("Analysis generated successfully.")
+            print(f"Analysis type: {analysis}")
             # --- Review the analysis for legal and calculation correctness ---
             try:
                 reviewed_analysis = await self.review_analysis(formatted_laws, formatted_judgements, analysis, documents,context)
@@ -900,9 +938,6 @@ PART 1 - VIOLATION IDENTIFICATION AND ANALYSIS:
 4. Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
 5. If no judgements are provided, respond with: "לא קיימות החלטות משפטיות זמינות לניתוח." in Hebrew.
 
-🚫 VERY IMPORTANT:
-If the document does not provide exact overtime hours, exact sick days, or absence dates — you MUST assume the employee did not exceed limits or qualify for sick pay.
-Do not infer or estimate violations without clear proof in the payslip.
 
 PART 2 - DETAILED PROFESSIONAL ANALYSIS FORMAT:
 
