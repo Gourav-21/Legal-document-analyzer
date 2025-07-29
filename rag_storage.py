@@ -18,6 +18,12 @@ except ImportError:
 
 import chromadb
 from chromadb.config import Settings
+
+# Streamlit caching for ChromaDB client
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 import uuid
 import json
 import os
@@ -49,9 +55,8 @@ class RAGLegalStorage:
         # Initialize database connection
         DATABASE_URL = os.getenv("DATABASE_URL")
         if DATABASE_URL:
-            engine = create_engine(DATABASE_URL)
-            SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            self.db_session = SessionLocal()
+            self.engine = create_engine(DATABASE_URL)
+            self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         else:
             raise Exception("DATABASE_URL not found in environment variables")
         
@@ -80,18 +85,32 @@ class RAGLegalStorage:
             print("   To enable AI summaries, set GEMINI_API_KEY in your .env file")
             self.ai_model = None
             self.ai_enabled = False
-        
-        # Initialize ChromaDB client
-        # self.client = chromadb.PersistentClient(
-        #     path=persist_directory,
-        #     settings=Settings(
-        #         anonymized_telemetry=False,
-        #         allow_reset=True
-        #     )
-        # )
+
+        # Initialize ChromaDB client using HTTP server mode for Streamlit robustness
         chromadb_host = os.getenv("CHROMADB_HOST", "127.0.0.1")
-        chromadb_port = int(os.getenv("CHROMADB_PORT", "3333"))
-        self.client = chromadb.HttpClient(host=chromadb_host, port=chromadb_port)
+        chromadb_port = int(os.getenv("CHROMADB_PORT", "8000"))
+
+        def get_chromadb_client():
+            try:
+                client = chromadb.HttpClient(host=chromadb_host, port=chromadb_port)
+                # client = chromadb.PersistentClient(
+                #     path=self.persist_directory,
+                #     settings=Settings(
+                #         anonymized_telemetry=False,
+                #         allow_reset=True,
+                #     )
+                # )
+                print(f"✅ Connected to ChromaDB server at {chromadb_host}:{chromadb_port}")
+                return client
+            except Exception as e:
+                print(f"⚠️ Failed to connect to ChromaDB server at {chromadb_host}:{chromadb_port}: {e}")
+                raise e
+
+        if st is not None:
+            # Use Streamlit resource cache if available
+            self.client = st.cache_resource(get_chromadb_client)()
+        else:
+            self.client = get_chromadb_client()
 
         
         # Initialize OpenAI client for embeddings
@@ -124,10 +143,14 @@ class RAGLegalStorage:
                 metadata={"description": "Chunked legal judgements and precedents"}
             )
     
-    def __del__(self):
-        """Close database session when object is destroyed"""
-        if hasattr(self, 'db_session') and self.db_session:
-            self.db_session.close()
+
+    def get_db_session(self):
+        """Context manager for short-lived DB sessions."""
+        session = self.SessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
     
     def generate_law_summary(self, law_text: str) -> str:
         """Generate a concise AI summary of a law using Gemini AI"""
@@ -196,111 +219,82 @@ class RAGLegalStorage:
     def add_law(self, law_text: str, metadata: Optional[Dict] = None) -> str:
         """Add a law to both database and vector database with AI-generated summary and chunking"""
         law_id = str(uuid.uuid4())
-        
         try:
-            # Generate AI summary
             summary = self.generate_law_summary(law_text)
-            
-            # Store law in database (simplified schema: id, full_text, summary)
-            db_law = Law(
-                id=law_id,
-                full_text=law_text,
-                summary=summary
-            )
-            self.db_session.add(db_law)
-            self.db_session.commit()
-            
-            # Chunk the text for vector storage
-            chunks = self.text_splitter.split_text(law_text)
-            
-            # Generate embeddings for chunks
-            if chunks:
-                embeddings = self.get_embeddings_batch(chunks)
-                
-                # Prepare chunk IDs and metadata
-                chunk_ids = [f"{law_id}_chunk_{i}" for i in range(len(chunks))]
-                chunk_metadatas = []
-                
-                for i, chunk in enumerate(chunks):
-                    chunk_metadata = {
-                        "type": "law_chunk",
-                        "law_id": law_id,
-                        "chunk_index": i,
-                        "total_chunks": len(chunks),
-                        "created_at": datetime.now().isoformat(),
-                        "summary": summary
-                    }
-                    if metadata:
-                        chunk_metadata.update(metadata)
-                    chunk_metadatas.append(chunk_metadata)
-                
-                # Add chunks to vector database
-                self.laws_collection.add(
-                    embeddings=embeddings,
-                    documents=chunks,
-                    metadatas=chunk_metadatas,
-                    ids=chunk_ids
+            with self.SessionLocal() as session:
+                db_law = Law(
+                    id=law_id,
+                    full_text=law_text,
+                    summary=summary
                 )
-            
+                session.add(db_law)
+                # Chunk the text for vector storage
+                chunks = self.text_splitter.split_text(law_text)
+                if chunks:
+                    embeddings = self.get_embeddings_batch(chunks)
+                    chunk_ids = [f"{law_id}_chunk_{i}" for i in range(len(chunks))]
+                    chunk_metadatas = []
+                    for i, chunk in enumerate(chunks):
+                        chunk_metadata = {
+                            "type": "law_chunk",
+                            "law_id": law_id,
+                            "chunk_index": i,
+                            "total_chunks": len(chunks),
+                            "created_at": datetime.now().isoformat(),
+                            "summary": summary
+                        }
+                        if metadata:
+                            chunk_metadata.update(metadata)
+                        chunk_metadatas.append(chunk_metadata)
+                    self.laws_collection.add(
+                        embeddings=embeddings,
+                        documents=chunks,
+                        metadatas=chunk_metadatas,
+                        ids=chunk_ids
+                    )
+                session.commit()
             print(f"✅ Added law {law_id} with {len(chunks)} chunks to database and vector store")
             return law_id
-            
         except Exception as e:
-            # Rollback database changes if vector storage fails
-            self.db_session.rollback()
             print(f"Error adding law: {e}")
             raise e
     
     def add_judgement(self, judgement_text: str, metadata: Optional[Dict] = None) -> str:
         """Add a judgement to both database and vector database with chunking"""
         judgement_id = str(uuid.uuid4())
-        
         try:
-            # Store judgement in database (simplified schema: id, full_text)
-            db_judgement = Judgement(
-                id=judgement_id,
-                full_text=judgement_text
-            )
-            self.db_session.add(db_judgement)
-            self.db_session.commit()
-            
-            # Chunk the text for vector storage
-            chunks = self.text_splitter.split_text(judgement_text)
-            
-            # Generate embeddings for chunks
-            if chunks:
-                embeddings = self.get_embeddings_batch(chunks)
-                
-                # Prepare chunk IDs and metadata
-                chunk_ids = [f"{judgement_id}_chunk_{i}" for i in range(len(chunks))]
-                chunk_metadatas = []
-                
-                for i, chunk in enumerate(chunks):
-                    chunk_metadata = {
-                        "type": "judgement_chunk",
-                        "judgement_id": judgement_id,
-                        "chunk_index": i,
-                        "total_chunks": len(chunks),
-                        "created_at": datetime.now().isoformat()
-                    }
-                    if metadata:
-                        chunk_metadata.update(metadata)
-                    chunk_metadatas.append(chunk_metadata)
-                
-                # Add chunks to vector database
-                self.judgements_collection.add(
-                    embeddings=embeddings,
-                    documents=chunks,
-                    metadatas=chunk_metadatas,
-                    ids=chunk_ids
+            with self.SessionLocal() as session:
+                db_judgement = Judgement(
+                    id=judgement_id,
+                    full_text=judgement_text
                 )
-            
+                session.add(db_judgement)
+                chunks = self.text_splitter.split_text(judgement_text)
+                if chunks:
+                    embeddings = self.get_embeddings_batch(chunks)
+                    chunk_ids = [f"{judgement_id}_chunk_{i}" for i in range(len(chunks))]
+                    chunk_metadatas = []
+                    for i, chunk in enumerate(chunks):
+                        chunk_metadata = {
+                            "type": "judgement_chunk",
+                            "judgement_id": judgement_id,
+                            "chunk_index": i,
+                            "total_chunks": len(chunks),
+                            "created_at": datetime.now().isoformat()
+                        }
+                        if metadata:
+                            chunk_metadata.update(metadata)
+                        chunk_metadatas.append(chunk_metadata)
+                    self.judgements_collection.add(
+                        embeddings=embeddings,
+                        documents=chunks,
+                        metadatas=chunk_metadatas,
+                        ids=chunk_ids
+                    )
+                session.commit()
             print(f"✅ Added judgement {judgement_id} with {len(chunks)} chunks to database and vector store")
             return judgement_id
-            
         except Exception as e:
-            # Rollback database changes if vector storage fails
-            self.db_session.rollback()
             print(f"Error adding judgement: {e}")
             raise e
 
@@ -308,16 +302,13 @@ class RAGLegalStorage:
         """Search for relevant law chunks using semantic similarity"""
         if not self.laws_collection.count():
             return []
-            
         query_embedding = self.get_embedding(query)
-        
         try:
             results = self.laws_collection.query(
                 query_embeddings=[query_embedding],
                 n_results=min(n_results * 3, self.laws_collection.count()),  # Get more chunks to group by law_id
                 include=["documents", "metadatas", "distances"]
             )
-            
             # Group chunks by law_id and get the best chunks for each law
             law_chunks = {}
             if results['documents'] and results['documents'][0]:
@@ -325,31 +316,25 @@ class RAGLegalStorage:
                     metadata = results['metadatas'][0][i]
                     law_id = metadata.get('law_id')
                     distance = results['distances'][0][i]
-                    
                     if law_id not in law_chunks:
                         law_chunks[law_id] = []
-                    
                     law_chunks[law_id].append({
                         "chunk": doc,
                         "metadata": metadata,
                         "distance": distance,
                         "chunk_index": metadata.get('chunk_index', 0)
                     })
-            
             # Sort chunks within each law and combine relevant chunks
             formatted_results = []
             for law_id, chunks in law_chunks.items():
                 # Sort chunks by distance (best first) and then by chunk_index
                 chunks.sort(key=lambda x: (x['distance'], x['chunk_index']))
-                
                 # Take the best chunks for this law (up to 3 chunks per law)
                 best_chunks = chunks[:3]
-                
                 # Get law info from database
-                db_law = self.db_session.query(Law).filter(Law.id == law_id).first()
-                
+                with self.SessionLocal() as session:
+                    db_law = session.query(Law).filter(Law.id == law_id).first()
                 combined_text = "\n\n".join([chunk['chunk'] for chunk in best_chunks])
-                
                 result = {
                     "id": law_id,
                     "text": combined_text,
@@ -360,11 +345,9 @@ class RAGLegalStorage:
                     "chunk_count": len(best_chunks)
                 }
                 formatted_results.append(result)
-            
             # Sort by best distance and limit results
             formatted_results.sort(key=lambda x: x['distance'])
             return formatted_results[:n_results]
-            
         except Exception as e:
             print(f"Error searching laws: {e}")
             return []
@@ -373,16 +356,13 @@ class RAGLegalStorage:
         """Search for relevant judgement chunks using semantic similarity"""
         if not self.judgements_collection.count():
             return []
-            
         query_embedding = self.get_embedding(query)
-        
         try:
             results = self.judgements_collection.query(
                 query_embeddings=[query_embedding],
                 n_results=min(n_results * 3, self.judgements_collection.count()),  # Get more chunks to group by judgement_id
                 include=["documents", "metadatas", "distances"]
             )
-            
             # Group chunks by judgement_id and get the best chunks for each judgement
             judgement_chunks = {}
             if results['documents'] and results['documents'][0]:
@@ -390,31 +370,25 @@ class RAGLegalStorage:
                     metadata = results['metadatas'][0][i]
                     judgement_id = metadata.get('judgement_id')
                     distance = results['distances'][0][i]
-                    
                     if judgement_id not in judgement_chunks:
                         judgement_chunks[judgement_id] = []
-                    
                     judgement_chunks[judgement_id].append({
                         "chunk": doc,
                         "metadata": metadata,
                         "distance": distance,
                         "chunk_index": metadata.get('chunk_index', 0)
                     })
-            
             # Sort chunks within each judgement and combine relevant chunks
             formatted_results = []
             for judgement_id, chunks in judgement_chunks.items():
                 # Sort chunks by distance (best first) and then by chunk_index
                 chunks.sort(key=lambda x: (x['distance'], x['chunk_index']))
-                
                 # Take the best chunks for this judgement (up to 3 chunks per judgement)
                 best_chunks = chunks[:3]
-                
                 # Get judgement info from database
-                db_judgement = self.db_session.query(Judgement).filter(Judgement.id == judgement_id).first()
-                
+                with self.SessionLocal() as session:
+                    db_judgement = session.query(Judgement).filter(Judgement.id == judgement_id).first()
                 combined_text = "\n\n".join([chunk['chunk'] for chunk in best_chunks])
-                
                 result = {
                     "id": judgement_id,
                     "text": combined_text,
@@ -424,11 +398,9 @@ class RAGLegalStorage:
                     "chunk_count": len(best_chunks)
                 }
                 formatted_results.append(result)
-            
             # Sort by best distance and limit results
             formatted_results.sort(key=lambda x: x['distance'])
             return formatted_results[:n_results]
-            
         except Exception as e:
             print(f"Error searching judgements: {e}")
             return []
@@ -436,18 +408,17 @@ class RAGLegalStorage:
     def get_all_laws(self) -> List[Dict]:
         """Get all laws from the database"""
         try:
-            db_laws = self.db_session.query(Law).all()
-            
-            formatted_results = []
-            for law in db_laws:
-                formatted_results.append({
-                    "id": law.id,
-                    "text": law.full_text,
-                    "summary": law.summary,
-                    "created_at": law.created_at.isoformat() if law.created_at else None
-                })
-            
-            return formatted_results
+            with self.SessionLocal() as session:
+                db_laws = session.query(Law).all()
+                formatted_results = []
+                for law in db_laws:
+                    formatted_results.append({
+                        "id": law.id,
+                        "text": law.full_text,
+                        "summary": law.summary,
+                        "created_at": law.created_at.isoformat() if law.created_at else None
+                    })
+                return formatted_results
         except Exception as e:
             print(f"Error getting all laws: {e}")
             return []
@@ -455,9 +426,10 @@ class RAGLegalStorage:
     def get_all_law_summaries(self) -> List[str]:
         """Get only the AI-generated summaries of all laws for system prompts"""
         try:
-            db_laws = self.db_session.query(Law).filter(Law.summary.isnot(None)).all()
-            summaries = [law.summary for law in db_laws if law.summary and law.summary.strip()]
-            return summaries
+            with self.SessionLocal() as session:
+                db_laws = session.query(Law).filter(Law.summary.isnot(None)).all()
+                summaries = [law.summary for law in db_laws if law.summary and law.summary.strip()]
+                return summaries
         except Exception as e:
             print(f"Error getting law summaries: {e}")
             return []
@@ -465,204 +437,174 @@ class RAGLegalStorage:
     def get_all_judgements(self) -> List[Dict]:
         """Get all judgements from the database"""
         try:
-            db_judgements = self.db_session.query(Judgement).all()
-            
-            formatted_results = []
-            for judgement in db_judgements:
-                formatted_results.append({
-                    "id": judgement.id,
-                    "text": judgement.full_text,
-                    "created_at": judgement.created_at.isoformat() if judgement.created_at else None
-                })
-            
-            return formatted_results
+            with self.SessionLocal() as session:
+                db_judgements = session.query(Judgement).all()
+                formatted_results = []
+                for judgement in db_judgements:
+                    formatted_results.append({
+                        "id": judgement.id,
+                        "text": judgement.full_text,
+                        "created_at": judgement.created_at.isoformat() if judgement.created_at else None
+                    })
+                return formatted_results
         except Exception as e:
             print(f"Error getting all judgements: {e}")
             return []
 
     def delete_law(self, law_id: str) -> bool:
-        """Delete a law from both database and vector database"""
+        """Delete a law from both database and vector database. If vector DB deletion fails, abort SQL delete."""
         try:
-            # Delete from database
-            db_law = self.db_session.query(Law).filter(Law.id == law_id).first()
-            if db_law:
-                self.db_session.delete(db_law)
-                self.db_session.commit()
-            
-            # Delete all chunks from vector database
-            try:
-                # Get all chunk IDs for this law
-                chunk_results = self.laws_collection.get(
-                    where={"law_id": law_id},
-                    include=["metadatas"]
-                )
-                
-                if chunk_results['ids']:
-                    self.laws_collection.delete(ids=chunk_results['ids'])
-                    print(f"✅ Deleted law {law_id} and {len(chunk_results['ids'])} chunks")
-                else:
-                    print(f"✅ Deleted law {law_id} (no chunks found)")
-                    
-            except Exception as ve:
-                print(f"Warning: Error deleting law chunks from vector DB: {ve}")
-            
+            with self.SessionLocal() as session:
+                db_law = session.query(Law).filter(Law.id == law_id).first()
+                # Delete all chunks from vector database first
+                try:
+                    chunk_results = self.laws_collection.get(
+                        where={"law_id": law_id},
+                        include=["metadatas"]
+                    )
+                    if chunk_results['ids']:
+                        self.laws_collection.delete(ids=chunk_results['ids'])
+                        print(f"✅ Deleted law {law_id} and {len(chunk_results['ids'])} chunks")
+                    else:
+                        print(f"✅ Deleted law {law_id} (no chunks found)")
+                except Exception as ve:
+                    print(f"Error deleting law chunks from vector DB: {ve}")
+                    return False
+                # Now delete from database
+                if db_law:
+                    session.delete(db_law)
+                session.commit()
             return True
         except Exception as e:
-            self.db_session.rollback()
             print(f"Error deleting law {law_id}: {e}")
             return False
 
     def delete_judgement(self, judgement_id: str) -> bool:
-        """Delete a judgement from both database and vector database"""
+        """Delete a judgement from both database and vector database. If vector DB deletion fails, abort SQL delete."""
         try:
-            # Delete from database
-            db_judgement = self.db_session.query(Judgement).filter(Judgement.id == judgement_id).first()
-            if db_judgement:
-                self.db_session.delete(db_judgement)
-                self.db_session.commit()
-            
-            # Delete all chunks from vector database
-            try:
-                # Get all chunk IDs for this judgement
-                chunk_results = self.judgements_collection.get(
-                    where={"judgement_id": judgement_id},
-                    include=["metadatas"]
-                )
-                
-                if chunk_results['ids']:
-                    self.judgements_collection.delete(ids=chunk_results['ids'])
-                    print(f"✅ Deleted judgement {judgement_id} and {len(chunk_results['ids'])} chunks")
-                else:
-                    print(f"✅ Deleted judgement {judgement_id} (no chunks found)")
-                    
-            except Exception as ve:
-                print(f"Warning: Error deleting judgement chunks from vector DB: {ve}")
-            
+            with self.SessionLocal() as session:
+                db_judgement = session.query(Judgement).filter(Judgement.id == judgement_id).first()
+                # Delete all chunks from vector database first
+                try:
+                    chunk_results = self.judgements_collection.get(
+                        where={"judgement_id": judgement_id},
+                        include=["metadatas"]
+                    )
+                    if chunk_results['ids']:
+                        self.judgements_collection.delete(ids=chunk_results['ids'])
+                        print(f"✅ Deleted judgement {judgement_id} and {len(chunk_results['ids'])} chunks")
+                    else:
+                        print(f"✅ Deleted judgement {judgement_id} (no chunks found)")
+                except Exception as ve:
+                    print(f"Error deleting judgement chunks from vector DB: {ve}")
+                    return False
+                # Now delete from database
+                if db_judgement:
+                    session.delete(db_judgement)
+                session.commit()
             return True
         except Exception as e:
-            self.db_session.rollback()
             print(f"Error deleting judgement {judgement_id}: {e}")
             return False
 
     def update_law(self, law_id: str, new_text: str, metadata: Optional[Dict] = None) -> Optional[str]:
         """Update a law in both local storage and vector database. Returns the new summary if successful, else None."""
         try:
-
-            db_law = self.db_session.query(Law).filter(Law.id == law_id).first()
-            if not db_law:
-                print(f"Law with ID {law_id} not found")
-                return None
-            
-            # Generate new summary
-            new_summary = self.generate_law_summary(new_text)
-            
-            db_law.full_text = new_text
-            db_law.summary = new_summary
-            self.db_session.commit()
-
-            # Delete old chunks from vector database
-            try:
-                chunk_results = self.laws_collection.get(
-                    where={"law_id": law_id},
-                    include=["metadatas"]
-                )
-                if chunk_results['ids']:
-                    self.laws_collection.delete(ids=chunk_results['ids'])
-            except Exception as ve:
-                print(f"Warning: Error deleting old law chunks: {ve}")
-
-            # Add new chunks to vector database
-            chunks = self.text_splitter.split_text(new_text)
-            if chunks:
-                embeddings = self.get_embeddings_batch(chunks)
-                chunk_ids = [f"{law_id}_chunk_{i}" for i in range(len(chunks))]
-                chunk_metadatas = []
-                for i, chunk in enumerate(chunks):
-                    chunk_metadata = {
-                        "type": "law_chunk",
-                        "law_id": law_id,
-                        "chunk_index": i,
-                        "total_chunks": len(chunks),
-                        "updated_at": datetime.now().isoformat(),
-                        "summary": new_summary
-                    }
-                    if metadata:
-                        chunk_metadata.update(metadata)
-                    chunk_metadatas.append(chunk_metadata)
-                self.laws_collection.add(
-                    embeddings=embeddings,
-                    documents=chunks,
-                    metadatas=chunk_metadatas,
-                    ids=chunk_ids
-                )
+            with self.SessionLocal() as session:
+                db_law = session.query(Law).filter(Law.id == law_id).first()
+                if not db_law:
+                    print(f"Law with ID {law_id} not found")
+                    return None
+                new_summary = self.generate_law_summary(new_text)
+                db_law.full_text = new_text
+                db_law.summary = new_summary
+                # Delete old chunks from vector database
+                try:
+                    chunk_results = self.laws_collection.get(
+                        where={"law_id": law_id},
+                        include=["metadatas"]
+                    )
+                    if chunk_results['ids']:
+                        self.laws_collection.delete(ids=chunk_results['ids'])
+                except Exception as ve:
+                    print(f"Warning: Error deleting old law chunks: {ve}")
+                # Add new chunks to vector database
+                chunks = self.text_splitter.split_text(new_text)
+                if chunks:
+                    embeddings = self.get_embeddings_batch(chunks)
+                    chunk_ids = [f"{law_id}_chunk_{i}" for i in range(len(chunks))]
+                    chunk_metadatas = []
+                    for i, chunk in enumerate(chunks):
+                        chunk_metadata = {
+                            "type": "law_chunk",
+                            "law_id": law_id,
+                            "chunk_index": i,
+                            "total_chunks": len(chunks),
+                            "updated_at": datetime.now().isoformat(),
+                            "summary": new_summary
+                        }
+                        if metadata:
+                            chunk_metadata.update(metadata)
+                        chunk_metadatas.append(chunk_metadata)
+                    self.laws_collection.add(
+                        embeddings=embeddings,
+                        documents=chunks,
+                        metadatas=chunk_metadatas,
+                        ids=chunk_ids
+                    )
+                session.commit()
             print(f"✅ Updated law {law_id} with {len(chunks)} new chunks")
             return new_summary
         except Exception as e:
-            self.db_session.rollback()
             print(f"Error updating law {law_id}: {e}")
             return None
 
     def update_judgement(self, judgement_id: str, new_text: str, metadata: Optional[Dict] = None) -> bool:
         """Update a judgement in both database and vector database"""
         try:
-            # Get existing judgement from database
-            db_judgement = self.db_session.query(Judgement).filter(Judgement.id == judgement_id).first()
-            if not db_judgement:
-                print(f"Judgement with ID {judgement_id} not found")
-                return False
-            
-            # Update judgement in database (simplified schema: id, full_text)
-            db_judgement.full_text = new_text
-            
-            self.db_session.commit()
-            
-            # Delete old chunks from vector database
-            try:
-                chunk_results = self.judgements_collection.get(
-                    where={"judgement_id": judgement_id},
-                    include=["metadatas"]
-                )
-                
-                if chunk_results['ids']:
-                    self.judgements_collection.delete(ids=chunk_results['ids'])
-            except Exception as ve:
-                print(f"Warning: Error deleting old judgement chunks: {ve}")
-            
-            # Add new chunks to vector database
-            chunks = self.text_splitter.split_text(new_text)
-            
-            if chunks:
-                embeddings = self.get_embeddings_batch(chunks)
-                
-                # Prepare chunk IDs and metadata
-                chunk_ids = [f"{judgement_id}_chunk_{i}" for i in range(len(chunks))]
-                chunk_metadatas = []
-                
-                for i, chunk in enumerate(chunks):
-                    chunk_metadata = {
-                        "type": "judgement_chunk",
-                        "judgement_id": judgement_id,
-                        "chunk_index": i,
-                        "total_chunks": len(chunks),
-                        "updated_at": datetime.now().isoformat()
-                    }
-                    if metadata:
-                        chunk_metadata.update(metadata)
-                    chunk_metadatas.append(chunk_metadata)
-                
-                # Add updated chunks to vector database
-                self.judgements_collection.add(
-                    embeddings=embeddings,
-                    documents=chunks,
-                    metadatas=chunk_metadatas,
-                    ids=chunk_ids
-                )
-            
+            with self.SessionLocal() as session:
+                db_judgement = session.query(Judgement).filter(Judgement.id == judgement_id).first()
+                if not db_judgement:
+                    print(f"Judgement with ID {judgement_id} not found")
+                    return False
+                db_judgement.full_text = new_text
+                # Delete old chunks from vector database
+                try:
+                    chunk_results = self.judgements_collection.get(
+                        where={"judgement_id": judgement_id},
+                        include=["metadatas"]
+                    )
+                    if chunk_results['ids']:
+                        self.judgements_collection.delete(ids=chunk_results['ids'])
+                except Exception as ve:
+                    print(f"Warning: Error deleting old judgement chunks: {ve}")
+                # Add new chunks to vector database
+                chunks = self.text_splitter.split_text(new_text)
+                if chunks:
+                    embeddings = self.get_embeddings_batch(chunks)
+                    chunk_ids = [f"{judgement_id}_chunk_{i}" for i in range(len(chunks))]
+                    chunk_metadatas = []
+                    for i, chunk in enumerate(chunks):
+                        chunk_metadata = {
+                            "type": "judgement_chunk",
+                            "judgement_id": judgement_id,
+                            "chunk_index": i,
+                            "total_chunks": len(chunks),
+                            "updated_at": datetime.now().isoformat()
+                        }
+                        if metadata:
+                            chunk_metadata.update(metadata)
+                        chunk_metadatas.append(chunk_metadata)
+                    self.judgements_collection.add(
+                        embeddings=embeddings,
+                        documents=chunks,
+                        metadatas=chunk_metadatas,
+                        ids=chunk_ids
+                    )
+                session.commit()
             print(f"✅ Updated judgement {judgement_id} with {len(chunks)} new chunks")
             return True
-            
         except Exception as e:
-            self.db_session.rollback()
             print(f"Error updating judgement {judgement_id}: {e}")
             return False
 
