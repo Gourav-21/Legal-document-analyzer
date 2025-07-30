@@ -54,6 +54,27 @@ class DocumentAnalysisResponse(BaseModel):
     status: str
     analysis_type: str
 
+def get_error_detail(e):
+    try:
+        # Try accessing the structured body if it's JSON-like
+        if hasattr(e, "body"):
+            import json
+            body = e.body
+            # If it's a string, parse it
+            if isinstance(body, str):
+                body = json.loads(body)
+            return body.get("error", {}).get("message", str(e))
+
+        # Fallback to using .message
+        if hasattr(e, "message"):
+            return str(e.message)
+
+        return str(e)
+
+    except Exception:
+        return repr(e)
+
+
 class DocumentProcessor:
     def __init__(self):
         # Initialize RAG storage
@@ -260,7 +281,7 @@ Always check and correct all calculations.
             result = await self.review_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
             return result.data if hasattr(result, 'data') else str(result) 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error in review_analysis: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error in review_analysis: {get_error_detail(e)}")
 
         
 
@@ -326,8 +347,8 @@ Always check and correct all calculations.
         try:
             question_result = await self.question_agent.run(docs)
         except Exception as e:
-            print(f"Error generating search queries: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error generating search queries: {str(e)}")
+            print(f"Error generating search queries: {get_error_detail(e)}")
+            raise HTTPException(status_code=500, detail=f"Error generating search queries: {get_error_detail(e)}")
 
         # Extract the search queries from the result object
         search_queries = question_result.data if hasattr(question_result, 'data') else question_result
@@ -398,40 +419,40 @@ Always check and correct all calculations.
                 analysis = result.data
             except Exception as pydantic_error:
                 # If PydanticAI fails, check if it's an event loop issue
-                if "Event loop is closed" in str(pydantic_error) or "event loop" in str(pydantic_error).lower():
-                    # Try to recreate the agent with a fresh context
-                    print(pydantic_error)
-                    print("Attempting to recreate PydanticAI agent due to event loop issue...")
-                      # Create a new agent instance
-                    temp_agent = Agent(
-                        model=self.model,
-                        result_type=str,
-                        system_prompt="""You are an expert legal document analyzer specializing in Israeli labor law compliance.
+#                 if "Event loop is closed" in str(pydantic_error) or "event loop" in str(pydantic_error).lower():
+#                     # Try to recreate the agent with a fresh context
+#                     print(pydantic_error)
+#                     print("Attempting to recreate PydanticAI agent due to event loop issue...")
+#                       # Create a new agent instance
+#                     temp_agent = Agent(
+#                         model=self.model,
+#                         result_type=str,
+#                         system_prompt="""You are an expert legal document analyzer specializing in Israeli labor law compliance.
 
-You will be provided with:
-1. Relevant labor laws retrieved from a legal database
-2. Relevant legal judgements and precedents retrieved from a legal database  
-3. Document content to analyze (payslips, contracts, attendance records)
-4. Additional context if provided
+# You will be provided with:
+# 1. Relevant labor laws retrieved from a legal database
+# 2. Relevant legal judgements and precedents retrieved from a legal database  
+# 3. Document content to analyze (payslips, contracts, attendance records)
+# 4. Additional context if provided
 
-Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
+# Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
 
-🚫 VERY IMPORTANT:
-- Read the document carefully and remember its contents like wage per hour, working hours, etc. and Do not recalculate data like wages per hour, sick days, etc. unless the document provides exact values.
-- Do not infer or estimate violations without clear proof in the payslip.
-- Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
-- Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
-- Do not hallucinate sick days, overtime hours, or absences
-- think step by step and analyze the documents carefully. do not rush to conclusions.
-- while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
+# 🚫 VERY IMPORTANT:
+# - Read the document carefully and remember its contents like wage per hour, working hours, etc. and Do not recalculate data like wages per hour, sick days, etc. unless the document provides exact values.
+# - Do not infer or estimate violations without clear proof in the payslip.
+# - Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
+# - Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
+# - Do not hallucinate sick days, overtime hours, or absences
+# - think step by step and analyze the documents carefully. do not rush to conclusions.
+# - while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
 
 
-Always respond in Hebrew and follow the specific formatting requirements for each analysis type."""
-                    )
-                      # Try the request again with the fresh agent
-                    result = await temp_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
-                    analysis = result.data
-                else:
+# Always respond in Hebrew and follow the specific formatting requirements for each analysis type."""
+#                     )
+#                       # Try the request again with the fresh agent
+#                     result = await temp_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
+#                     analysis = result.data
+#                 else:
                     # Re-raise the original error if it's not event loop related
                     raise pydantic_error
             print("Analysis generated successfully.")
@@ -454,7 +475,7 @@ Always respond in Hebrew and follow the specific formatting requirements for eac
         except Exception as e:
             raise HTTPException(
                 status_code=500,
-                detail=f"Error generating legal analysis: {str(e)}"
+                detail=f"Error generating legal analysis: {get_error_detail(e)}"
             )
 
     async def _build_analysis_prompt(self, analysis_type: str, documents: Dict, 
@@ -1065,7 +1086,7 @@ Formatting requirements:
                 # Return markdown or structured, as you prefer
                 return result[0].markdown
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Extraction error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Extraction error: {get_error_detail(e)}")
 
     def _extract_text_legacy(self, content: bytes, filename: str, compress: bool = False) -> str:
         """Legacy text extraction method (kept for fallback)"""
@@ -1102,7 +1123,7 @@ Formatting requirements:
                             text += " ".join(text_list) + "\n"
             return text
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error processing PDF: {get_error_detail(e)}")
 
     def _extract_docx_text(self, content: bytes) -> str:
         """Extract text from DOCX files"""
@@ -1122,7 +1143,7 @@ Formatting requirements:
                 text += sheet_data.to_string(index=False) + "\n\n"
             return text
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing Excel file: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error processing Excel file: {get_error_detail(e)}")
 
     def _extract_image_text(self, content: bytes, compress: bool = False) -> str:
         """Extract text from images using Vision API"""
@@ -1141,7 +1162,7 @@ Formatting requirements:
             else:
                 return ""
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error processing image: {get_error_detail(e)}")
 
     def _compress_image(self, image_bytes: bytes, max_size_mb: int = 4) -> bytes:
         """Compress image to reduce size for API limits"""
@@ -1232,7 +1253,7 @@ Formatting requirements:
                     raise pydantic_error
             
         except Exception as e:
-            error_detail = f"Error generating summary with PydanticAI: {str(e)}"
+            error_detail = f"Error generating summary with PydanticAI: {get_error_detail(e)}"
             raise HTTPException(
                 status_code=500,
                 detail=error_detail

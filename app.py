@@ -382,7 +382,7 @@ with tab1:
                         else:
                             st.info("לא התקבל תוכן להצגת הדו""ח המשולב.")
                 except Exception as e:
-                    st.error(f"שגיאה ביצירת הדו""ח המשולב: {str(e)}")
+                    st.error(f"שגיאה ביצירת הדו\"ח המשולב: {str(e)}")
 
         # Display area for the report and its summary
         if st.session_state.get('report_output_title') and st.session_state.get('report_output_content'):
