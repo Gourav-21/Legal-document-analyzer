@@ -328,11 +328,54 @@ Always check and correct all calculations.
             "attendance_text": attendance_text
         }
 
+    def _build_summary_prompt_from_combined(self, combined_report: str, analysis_type: str) -> str:
+        """
+        Build a prompt to convert the reviewed combined report into the requested summary type.
+        """
+        if analysis_type == "table":
+            instructions = self._get_table_instructions()
+        elif analysis_type == "violation_count_table":
+            instructions = self._get_violation_count_table_instructions()
+        elif analysis_type == "violations_list":
+            instructions = self._get_violations_list_instructions()
+        else:
+            raise ValueError(f"Unsupported summary analysis_type: {analysis_type}")
+
+        prompt = f"""
+להלן דוח ניתוח משפטי משולב של מסמכי העובד:
+
+{combined_report}
+
+---
+
+{instructions}
+"""
+        return prompt
+
+    async def qna(self, report: str, questions: str) -> str:
+        """Generate answer of queries based on the provided document content."""
+        prompt = f"""
+להלן דוח ניתוח משפטי משולב של מסמכי העובד:
+
+{report}
+
+---
+
+שאלות:
+{questions}
+
+---
+
+אנא ספק תשובות לשאלות לעיל.
+"""
+        result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+        return result.data
+
     async def create_report(self, payslip_text: str = None, contract_text: str = None, 
                           attendance_text: str = None, analysis_type: str = "report", 
                           context: str = None) -> DocumentAnalysisResponse:
         """Create legal analysis report using RAG and PydanticAI"""
-        
+
         # Prepare documents for analysis
         documents = {}
         if payslip_text:
@@ -341,7 +384,34 @@ Always check and correct all calculations.
             documents['contract'] = contract_text
         if attendance_text:
             documents['attendance report'] = attendance_text
-            
+
+        # Special handling for table, violation_count_table, violations_list
+        special_types = ["table", "violation_count_table", "violations_list"]
+        if analysis_type in special_types:
+            # Step 1: Run combined analysis and review
+            combined_report = await self.create_report(
+                payslip_text=payslip_text,
+                contract_text=contract_text,
+                attendance_text=attendance_text,
+                analysis_type="combined",
+                context=context
+            )
+            reviewed_combined = combined_report.legal_analysis
+            # Step 2: Build a summary prompt from the reviewed combined report
+            prompt = self._build_summary_prompt_from_combined(reviewed_combined, analysis_type)
+            try:
+                result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+                analysis = result.data
+            except Exception as pydantic_error:
+                raise pydantic_error
+            # No review needed for these summary types
+            return DocumentAnalysisResponse(
+                legal_analysis=analysis,
+                status="success",
+                analysis_type=analysis_type
+            )
+
+        # Normal flow for all other types
         # Pass the documents to the question agent to generate search queries
         docs = "\n\n".join([f"{doc_type.upper()} CONTENT:\n{content}" for doc_type, content in documents.items()])
         try:
@@ -367,12 +437,12 @@ Always check and correct all calculations.
         # Query laws and judgements using the generated search queries
         all_relevant_laws = []
         all_relevant_judgements = []
-        
+
         for query in search_queries:
             print(f"Searching for laws with query: {query}")
             laws = self.rag_storage.search_laws(query, n_results=2)  # Fewer results per query
             all_relevant_laws.extend(laws)
-            
+
             print(f"Searching for judgements with query: {query}")
             judgements = self.rag_storage.search_judgements(query, n_results=1)  # Fewer results per query
             all_relevant_judgements.extend(judgements)
@@ -401,7 +471,7 @@ Always check and correct all calculations.
         # Format the laws and judgements for the prompt
         formatted_laws = self.rag_storage.format_laws_for_prompt(unique_laws)
         formatted_judgements = self.rag_storage.format_judgements_for_prompt(unique_judgements)
-        
+
         # Combine formatted content
         combined_context = f"{formatted_laws}\n\n{formatted_judgements}"
         print(f"Retrieved {len(unique_laws)} laws and {len(unique_judgements)} judgements")
@@ -411,7 +481,7 @@ Always check and correct all calculations.
         prompt = await self._build_analysis_prompt(
             analysis_type, documents, combined_context, context
         )
-        
+
         try:
             # Generate analysis using PydanticAI
             try:
@@ -503,8 +573,8 @@ ADDITIONAL CONTEXT:
             base_prompt += self._get_report_instructions()
         elif analysis_type == 'profitability':
             base_prompt += self._get_profitability_instructions()
-        elif analysis_type == 'professional':
-            base_prompt += self._get_professional_instructions()
+        # elif analysis_type == 'professional':
+        #     base_prompt += self._get_professional_instructions()
         elif analysis_type == 'warning_letter':
             base_prompt += await self._get_warning_letter_instructions()
         elif analysis_type == 'easy':
@@ -692,38 +762,38 @@ CRITICAL: Replace ALL placeholders with actual calculated values from the analys
 """"""
 """
 
-    def _get_professional_instructions(self) -> str:
-        return """
-Analyze the provided documents for labor law violations based strictly on the retrieved Israeli labor laws and the content of the documents. For each violation, calculate the monetary differences using only those laws.
-Provide your analysis in the following format, entirely in Hebrew:
+#     def _get_professional_instructions(self) -> str:
+#         return """
+# Analyze the provided documents for labor law violations based strictly on the retrieved Israeli labor laws and the content of the documents. For each violation, calculate the monetary differences using only those laws.
+# Provide your analysis in the following format, entirely in Hebrew:
 
-ניתוח מקצועי של הפרות שכר:
+# ניתוח מקצועי של הפרות שכר:
 
-הפרה: [כותרת ההפרה]
-[תיאור מפורט של ההפרה, כולל תאריכים רלוונטיים, שעות עבודה, שכר שעתי וחישובים, בהתבסס אך ורק על החוקים הישראליים שנמצאו והמסמכים שסופקו.
-דוגמה: העובד עבד X שעות נוספות בין [חודש שנה] ל-[חודש שנה]. לפי שכר שעתי בסיסי של [שכר] ₪ ושיעורי תשלום שעות נוספות ([שיעור1]% עבור X השעות הראשונות, [שיעור2]% לאחר מכן) כפי שמופיע בחוקי העבודה שנמצאו, העובד היה זכאי ל-[סכום] ₪ לחודש. בפועל קיבל רק [סכום שקיבל] ₪ למשך X חודשים ו-[סכום] ₪ בחודש [חודש].]
-סה"כ חוב: [סכום ההפרש עבור הפרה זו] ₪
+# הפרה: [כותרת ההפרה]
+# [תיאור מפורט של ההפרה, כולל תאריכים רלוונטיים, שעות עבודה, שכר שעתי וחישובים, בהתבסס אך ורק על החוקים הישראליים שנמצאו והמסמכים שסופקו.
+# דוגמה: העובד עבד X שעות נוספות בין [חודש שנה] ל-[חודש שנה]. לפי שכר שעתי בסיסי של [שכר] ₪ ושיעורי תשלום שעות נוספות ([שיעור1]% עבור X השעות הראשונות, [שיעור2]% לאחר מכן) כפי שמופיע בחוקי העבודה שנמצאו, העובד היה זכאי ל-[סכום] ₪ לחודש. בפועל קיבל רק [סכום שקיבל] ₪ למשך X חודשים ו-[סכום] ₪ בחודש [חודש].]
+# סה"כ חוב: [סכום ההפרש עבור הפרה זו] ₪
 
-הפרה: [כותרת ההפרה]
-[תיאור מפורט של ההפרה, כולל תאריכים וחישובים, בהתבסס אך ורק על החוקים שנמצאו והמסמכים. 
-דוגמה: בחודש [חודש שנה] לא בוצעה הפקדה לפנסיה. המעסיק מחויב להפקיד [אחוז]% מהשכר בגובה [שכר] ₪ = [סכום] ₪ בהתאם לחוק/צו הרחבה שנמצא.]
-סה"כ חוב פנסיה: [סכום חוב הפנסיה להפרה זו] ₪
+# הפרה: [כותרת ההפרה]
+# [תיאור מפורט של ההפרה, כולל תאריכים וחישובים, בהתבסס אך ורק על החוקים שנמצאו והמסמכים. 
+# דוגמה: בחודש [חודש שנה] לא בוצעה הפקדה לפנסיה. המעסיק מחויב להפקיד [אחוז]% מהשכר בגובה [שכר] ₪ = [סכום] ₪ בהתאם לחוק/צו הרחבה שנמצא.]
+# סה"כ חוב פנסיה: [סכום חוב הפנסיה להפרה זו] ₪
 
----
+# ---
 
-סה"כ תביעה משפטית (לא כולל ריבית): [הסכום הכולל לתביעה מכלל ההפרות] ₪  
-אסמכתאות משפטיות: [רשימת שמות החוק הרלוונטיים מתוך החוקים הישראליים שנמצאו. לדוגמה: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
+# סה"כ תביעה משפטית (לא כולל ריבית): [הסכום הכולל לתביעה מכלל ההפרות] ₪  
+# אסמכתאות משפטיות: [רשימת שמות החוק הרלוונטיים מתוך החוקים הישראליים שנמצאו. לדוגמה: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
 
-SUMMARY TABLE:
-After completing the professional analysis, provide a summary table with actual data:
-- Use the heading: === טבלת סיכום הפרות מקצועי ===
-- Create columns for: סוג הפרה | תקופה | סכום (₪)
-- Add rows with actual violation types, periods, and amounts from your analysis
-- End with a total line showing the total amount in ₪
-- Include legal references from retrieved laws
+# SUMMARY TABLE:
+# After completing the professional analysis, provide a summary table with actual data:
+# - Use the heading: === טבלת סיכום הפרות מקצועי ===
+# - Create columns for: סוג הפרה | תקופה | סכום (₪)
+# - Add rows with actual violation types, periods, and amounts from your analysis
+# - End with a total line showing the total amount in ₪
+# - Include legal references from retrieved laws
 
-CRITICAL: Replace ALL placeholders with actual data from the analysis. Do not output template text.
-"""
+# CRITICAL: Replace ALL placeholders with actual data from the analysis. Do not output template text.
+# """
 
     async def _get_warning_letter_instructions(self) -> str:
         # Get letter format from storage (we'll need to adapt this)

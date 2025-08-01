@@ -402,8 +402,36 @@ with tab1:
             
             # Display the summary if it has been generated and stored
             if st.session_state.get('summary_output_content'):
+
                 st.markdown("### סיכום")
                 st.markdown(st.session_state.summary_output_content)
+
+            # --- QnA Section ---
+            # Show QnA input below the summary button
+            if st.session_state.get('last_legal_analysis'):
+                st.markdown("---")
+                st.markdown("#### שאל שאלה על הדוח שהופק")
+                qna_question = st.text_input("הזן שאלה על הדוח", key="qna_question_input")
+                if 'qna_result' not in st.session_state:
+                    st.session_state.qna_result = None
+                if st.button("שלח שאלה", key="qna_submit_btn"):
+                    # Call the doc_processor.qna async function with the question and report
+                    import asyncio
+                    try:
+                        with st.spinner("שולח שאלה..."):
+                            # Run the async qna function synchronously
+                            result = asyncio.run(doc_processor.qna(
+                                st.session_state.last_legal_analysis,
+                                qna_question
+                            ))
+                            st.session_state.qna_result = result
+                    except Exception as e:
+                        st.session_state.qna_result = None
+                        st.error(f"שגיאה בשליחת השאלה: {str(e)}")
+                # Show the QnA result if available
+                if st.session_state.qna_result:
+                    st.markdown("#### תשובה לשאלה:")
+                    st.markdown(st.session_state.qna_result)
 
 # Letter Format Management Tab
 with tab3:
