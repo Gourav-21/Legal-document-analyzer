@@ -76,6 +76,20 @@ def get_error_detail(e):
 
 
 class DocumentProcessor:
+    def qna_sync(self, report: str, questions: str) -> str:
+        """Synchronous wrapper for the async qna method."""
+        import asyncio
+        try:
+            return asyncio.run(self.qna(report, questions))
+        except RuntimeError as e:
+            # If there's already a running event loop (e.g. in Streamlit), use alternative
+            try:
+                import nest_asyncio
+                nest_asyncio.apply()
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(self.qna(report, questions))
+            except Exception as inner_e:
+                raise RuntimeError(f"Failed to run qna async: {inner_e}") from e
     def __init__(self):
         # Initialize RAG storage
         self.rag_storage = RAGLegalStorage()

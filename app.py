@@ -415,15 +415,12 @@ with tab1:
                 if 'qna_result' not in st.session_state:
                     st.session_state.qna_result = None
                 if st.button("שלח שאלה", key="qna_submit_btn"):
-                    # Call the doc_processor.qna async function with the question and report
-                    import asyncio
                     try:
                         with st.spinner("שולח שאלה..."):
-                            # Run the async qna function synchronously
-                            result = asyncio.run(doc_processor.qna(
+                            result = doc_processor.qna_sync(
                                 st.session_state.last_legal_analysis,
                                 qna_question
-                            ))
+                            )
                             st.session_state.qna_result = result
                     except Exception as e:
                         st.session_state.qna_result = None
