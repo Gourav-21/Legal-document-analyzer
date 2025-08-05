@@ -87,21 +87,43 @@ class DocumentProcessor:
 
         # Compose a prompt for the AI agent to extract structured data
         prompt = f"""
-        Extract a table of all employees from the following legal document analysis results. For each employee, extract:
-        - Employee Name (שם העובד)
-        - Overtime Hours (שעות נוספות)
-        - Base Salary (שכר יסוד)
-        - Net Salary (שכר נטו)
-        - Any other relevant fields (e.g., period, deductions, pension, etc.)
-        
-        Return the result as a markdown table with columns for all the above fields. If there are multiple payslips or employees, include all rows.
-        
+        Extract a table of all employees from the following legal document analysis results. For each employee, extract the following fields (if available):
+        - שם העובד (Employee Name)
+        - חודש עבודה (Work Month)
+        - שנה (Year)
+        - סה"כ ימי עבודה (Total Work Days)
+        - סה"כ שעות עבודה (Total Work Hours)
+        - תעריף שעתי (Hourly Rate)
+        - משכורת 100 % (100% Salary)
+        - ש.נ. 125% (Overtime 125%)
+        - ש.נ. 150% (Overtime 150%)
+        - ש.נ. 175% (Overtime 175%)
+        - ש.נ. 200% (Overtime 200%)
+        - שעות שבת (Shabbat Hours)
+        - שעות חג (Holiday Hours)
+        - חופשה (Vacation)
+        - ימי מחלה (Sick Days)
+        - הבראה (Convalescence)
+        - נסיעות (Travel)
+        - הפרשות מעסיק לפנסיה (Employer Pension Contributions)
+        - הפרשות מעסיק קרן השתלמות (Employer Study Fund Contributions)
+        - ניכוי עובד גמל (Employee Pension Deduction)
+        - ניכוי עובד קרן התשלמות (Employee Study Fund Deduction)
+        - תוספת וותק (Seniority Bonus)
+        - ש.נ. גלובלי (Global Overtime)
+        - כמות ש.נ גלובלי (Global Overtime Amount)
+        - עמלה (Commission)
+        - בונוס (Bonus)
+        - עמלה (Commission)
+
+        Return the result as a markdown table with columns for all the above fields (in the order listed). If there are multiple payslips or employees, include all rows.
+
         Payslip Text:
         {processed_result.get('payslip_text', '')}
-        
+
         Contract Text:
         {processed_result.get('contract_text', '')}
-        
+
         Attendance Text:
         {processed_result.get('attendance_text', '')}
         """
