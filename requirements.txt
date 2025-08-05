@@ -1,3 +1,5 @@
+# For Excel export
+xlsxwriter
 agentic-doc==0.2.4
 alembic==1.15.2
 altair==5.5.0
