@@ -76,6 +76,102 @@ def get_error_detail(e):
 
 
 class DocumentProcessor:
+    def export_to_excel(self, processed_result: dict) -> bytes:
+        """
+        Process the processed_result, use AI agent to extract employee name, overtime hours, salary, and all relevant data, and generate an Excel file for download.
+        Returns the Excel file as bytes.
+        """
+        import pandas as pd
+        import io
+        import asyncio
+
+        # Compose a prompt for the AI agent to extract structured data
+        prompt = f"""
+        Extract a table of all employees from the following legal document analysis results. For each employee, extract:
+        - Employee Name (שם העובד)
+        - Overtime Hours (שעות נוספות)
+        - Base Salary (שכר יסוד)
+        - Net Salary (שכר נטו)
+        - Any other relevant fields (e.g., period, deductions, pension, etc.)
+        
+        Return the result as a markdown table with columns for all the above fields. If there are multiple payslips or employees, include all rows.
+        
+        Payslip Text:
+        {processed_result.get('payslip_text', '')}
+        
+        Contract Text:
+        {processed_result.get('contract_text', '')}
+        
+        Attendance Text:
+        {processed_result.get('attendance_text', '')}
+        """
+
+        # Use the agent to extract the table
+        def get_table_sync():
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    return loop.run_until_complete(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
+                else:
+                    return asyncio.run(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
+            except RuntimeError:
+                return asyncio.run(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
+
+        result = get_table_sync()
+        print(result)
+        table_md = result.data if hasattr(result, 'data') else str(result)
+
+        # Parse the markdown table to a DataFrame
+        import re
+        from io import StringIO
+        def markdown_table_to_df(md):
+            # Find the first markdown table in the string
+            lines = md.splitlines()
+            table_lines = []
+            in_table = False
+            for line in lines:
+                if '|' in line:
+                    in_table = True
+                    table_lines.append(line)
+                elif in_table and line.strip() == '':
+                    break
+            if not table_lines:
+                raise ValueError("No markdown table found in AI output.")
+            # Remove markdown separator lines (e.g., | :--- | ... |)
+            cleaned_lines = []
+            for i, line in enumerate(table_lines):
+                # Remove lines where all cells are dashes or colons (markdown separator)
+                cells = [c.strip() for c in line.strip().split('|') if c.strip()]
+                if all(re.match(r'^:?[-]+:?$', c) for c in cells):
+                    continue
+                cleaned_lines.append(line)
+            table_str = '\n'.join(cleaned_lines)
+            # Use pandas to read the markdown table
+            try:
+                import pandas as pd
+                from io import StringIO
+                df = pd.read_csv(StringIO(table_str), sep='|', engine='python')
+                # Remove unnamed columns and whitespace
+                df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+                df.columns = [c.strip() for c in df.columns]
+                # Use DataFrame.map for element-wise string strip (applymap is deprecated)
+                for col in df.columns:
+                    if df[col].dtype == object:
+                        df[col] = df[col].map(lambda x: x.strip() if isinstance(x, str) else x)
+                return df
+            except Exception as e:
+                raise ValueError(f"Failed to parse markdown table: {e}\nTable string:\n{table_str}")
+
+        df = markdown_table_to_df(table_md)
+
+        # Write DataFrame to Excel in memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='EmployeeData')
+        output.seek(0)
+        return output.read()
     def qna_sync(self, report: str, questions: str) -> str:
         """Synchronous wrapper for the async qna method."""
         import asyncio
