@@ -1,4 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
+import io
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from document_processor_pydantic_ques import DocumentProcessor
 from typing import Literal, List, Dict, Optional
@@ -9,8 +11,34 @@ from auth import get_current_user
 router = APIRouter()
 doc_processor = DocumentProcessor()
 
+
 class SummarizeRequest(BaseModel):
     ai_content: str
+
+class QnARequest(BaseModel):
+    report: str
+    question: str
+
+class ExportExcelRequest(BaseModel):
+    processed_result: dict
+
+@router.post("/export_excel")
+async def export_excel_endpoint(
+    request_body: ExportExcelRequest = Body(...)
+):
+    try:
+        excel_bytes = doc_processor.export_to_excel(request_body.processed_result)
+        return StreamingResponse(
+            io.BytesIO(excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": "attachment; filename=employee_data.xlsx"
+            }
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error exporting to Excel: {str(e)}")
 
 @router.post("/process")
 async def process_documents(
@@ -100,3 +128,22 @@ async def summarise_analysis_endpoint(
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+
+# New QnA endpoint
+@router.post("/qna")
+async def qna_endpoint(
+    request_body: QnARequest = Body(...)
+):
+    try:
+        answer = await doc_processor.qna(
+            report=request_body.report,
+            questions=request_body.question
+        )
+        return {"answer": answer}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=f"Error in QnA: {str(e)}")
+

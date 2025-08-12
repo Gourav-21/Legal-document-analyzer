@@ -194,6 +194,7 @@ class DocumentProcessor:
             df.to_excel(writer, index=False, sheet_name='EmployeeData')
         output.seek(0)
         return output.read()
+    
     def qna_sync(self, report: str, questions: str) -> str:
         """Synchronous wrapper for the async qna method."""
         import asyncio
@@ -208,6 +209,7 @@ class DocumentProcessor:
                 return loop.run_until_complete(self.qna(report, questions))
             except Exception as inner_e:
                 raise RuntimeError(f"Failed to run qna async: {inner_e}") from e
+            
     def __init__(self):
         # Initialize RAG storage
         self.rag_storage = RAGLegalStorage()
@@ -470,6 +472,12 @@ Always check and correct all calculations.
             instructions = self._get_violation_count_table_instructions()
         elif analysis_type == "violations_list":
             instructions = self._get_violations_list_instructions()
+        elif analysis_type == "easy":
+            instructions = self._get_easy_instructions()
+        elif analysis_type == "claim":
+            instructions = self._get_claim_instructions()
+        elif analysis_type == "warning_letter":
+            instructions = self._get_warning_letter_instructions()
         else:
             raise ValueError(f"Unsupported summary analysis_type: {analysis_type}")
 
@@ -517,8 +525,8 @@ Always check and correct all calculations.
         if attendance_text:
             documents['attendance report'] = attendance_text
 
-        # Special handling for table, violation_count_table, violations_list
-        special_types = ["table", "violation_count_table", "violations_list"]
+        # Special handling for table, violation_count_table, violations_list, easy, claim, warning_letter
+        special_types = ["table", "violation_count_table", "violations_list", "easy", "claim", "warning_letter"]
         if analysis_type in special_types:
             # Step 1: Run combined analysis and review
             combined_report = await self.create_report(
@@ -529,6 +537,7 @@ Always check and correct all calculations.
                 context=context
             )
             reviewed_combined = combined_report.legal_analysis
+            print(reviewed_combined)
             # Step 2: Build a summary prompt from the reviewed combined report
             prompt = self._build_summary_prompt_from_combined(reviewed_combined, analysis_type)
             try:

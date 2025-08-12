@@ -66,5 +66,5 @@ app.include_router(
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to Legal Document API       update date: 29/5"}
+    return {"message": "Welcome to Legal Document API       update date: 8/12"}
 
