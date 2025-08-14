@@ -130,16 +130,33 @@ class DocumentProcessor:
 
         # Use the agent to extract the table
         def get_table_sync():
+            import asyncio
             try:
-                loop = asyncio.get_event_loop()
+                # Try to get the current event loop
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    # No event loop in this thread (Streamlit), create and set one
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                is_uvloop = 'uvloop' in str(type(loop))
+                # If loop is running, patch with nest_asyncio only if not uvloop
                 if loop.is_running():
-                    import nest_asyncio
-                    nest_asyncio.apply()
-                    return loop.run_until_complete(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
+                    if not is_uvloop:
+                        try:
+                            import nest_asyncio
+                            nest_asyncio.apply()
+                        except Exception:
+                            pass
+                    # Use run_until_complete via a new task if possible
+                    coro = self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+                    task = asyncio.ensure_future(coro)
+                    return loop.run_until_complete(task)
                 else:
-                    return asyncio.run(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
-            except RuntimeError:
-                return asyncio.run(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
+                    # Loop is not running, safe to use run_until_complete
+                    return loop.run_until_complete(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
+            except Exception as e:
+                raise e
 
         result = get_table_sync()
         print(result)
