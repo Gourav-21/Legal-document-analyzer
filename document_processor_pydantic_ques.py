@@ -1288,8 +1288,9 @@ Formatting requirements:
                 df = pd.read_excel(excel_file, sheet_name=None)
                 text = ""
                 for sheet, data in df.items():
-                    text += f"Sheet: {sheet}\n"
-                    text += data.to_string(index=False) + "\n\n"
+                    text += f"## Sheet: {sheet}\n"
+                    # Convert DataFrame to Markdown table
+                    text += data.to_markdown(index=False) + "\n\n"
                 return text
             else:
                 # Unknown file type, treat as plain text
