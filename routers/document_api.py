@@ -27,7 +27,7 @@ async def export_excel_endpoint(
     request_body: ExportExcelRequest = Body(...)
 ):
     try:
-        excel_bytes = doc_processor.export_to_excel(request_body.processed_result)
+        excel_bytes = await doc_processor.export_to_excel(request_body.processed_result)
         return StreamingResponse(
             io.BytesIO(excel_bytes),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
