@@ -76,7 +76,7 @@ def get_error_detail(e):
 
 
 class DocumentProcessor:
-    def export_to_excel(self, processed_result: dict) -> bytes:
+    async def export_to_excel(self, processed_result: dict) -> bytes:
         """
         Process the processed_result, use AI agent to extract employee name, overtime hours, salary, and all relevant data, and generate an Excel file for download.
         Returns the Excel file as bytes.
@@ -129,11 +129,11 @@ class DocumentProcessor:
         """
 
         # Simplified agent call
-        def get_table_sync():
+        async def get_table_sync():
             try:
-                # For FastAPI/uvicorn - direct call
+                # For FastAPI/uvicorn - direct call (no nest_asyncio needed)
                 if not self._is_streamlit():
-                    return self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+                    return await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
 
                 # For Streamlit - use nest_asyncio
                 import nest_asyncio
@@ -143,7 +143,7 @@ class DocumentProcessor:
             except Exception as e:
                 raise e
 
-        result = get_table_sync()
+        result = await get_table_sync()
         print(result)
         table_md = result.data if hasattr(result, 'data') else str(result)
 
@@ -200,9 +200,10 @@ class DocumentProcessor:
     def _is_streamlit(self) -> bool:
         """Check if the code is running in a Streamlit environment."""
         try:
-            import streamlit
-            return True
-        except ImportError:
+            import streamlit as st
+            # Check if we're actually in a Streamlit runtime, not just if streamlit is installed
+            return hasattr(st, 'runtime') and st.runtime.exists()
+        except (ImportError, AttributeError):
             return False
 
     def qna_sync(self, report: str, questions: str) -> str:
@@ -212,13 +213,17 @@ class DocumentProcessor:
             return asyncio.run(self.qna(report, questions))
         except RuntimeError as e:
             # If there's already a running event loop (e.g. in Streamlit), use alternative
-            try:
-                import nest_asyncio
-                nest_asyncio.apply()
-                loop = asyncio.get_event_loop()
-                return loop.run_until_complete(self.qna(report, questions))
-            except Exception as inner_e:
-                raise RuntimeError(f"Failed to run qna async: {inner_e}") from e
+            if self._is_streamlit():
+                try:
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    loop = asyncio.get_event_loop()
+                    return loop.run_until_complete(self.qna(report, questions))
+                except Exception as inner_e:
+                    raise RuntimeError(f"Failed to run qna async in Streamlit: {inner_e}") from e
+            else:
+                # In uvicorn/FastAPI, this shouldn't happen since we should use the async method directly
+                raise RuntimeError(f"Cannot run async method in sync context. Use the async qna method instead: {e}") from e
             
     def __init__(self):
         # Initialize RAG storage

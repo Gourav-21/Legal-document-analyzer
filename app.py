@@ -9,6 +9,7 @@ except ImportError:
     import sqlite_fix  # Fallback to sqlite_fix
 
 import streamlit as st
+import asyncio
 from document_processor_pydantic_ques import DocumentProcessor
 from fastapi import UploadFile
 from io import BytesIO
@@ -154,7 +155,7 @@ with tab1:
         if st.button("📤 ייצא לאקסל", key="export_excel_btn"):
             try:
                 with st.spinner("מייצא לאקסל..."):
-                    excel_bytes = doc_processor.export_to_excel(st.session_state.processed_result)
+                    excel_bytes = asyncio.run(doc_processor.export_to_excel(st.session_state.processed_result))
                     st.download_button(
                         label="הורד קובץ אקסל",
                         data=excel_bytes,
