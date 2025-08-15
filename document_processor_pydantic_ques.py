@@ -128,35 +128,18 @@ class DocumentProcessor:
         {processed_result.get('attendance_text', '')}
         """
 
-        # Use the agent to extract the table
+        # Simplified agent call
         def get_table_sync():
-            import asyncio
             try:
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                coro = self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
-                is_uvloop = 'uvloop' in str(type(loop))
-                if not loop.is_running():
-                    return asyncio.run(coro)
-                if not is_uvloop:
-                    try:
-                        import nest_asyncio
-                        nest_asyncio.apply()
-                        return loop.run_until_complete(coro)
-                    except Exception:
-                        pass
-                # Fallback: run coroutine in a new thread
-                from concurrent.futures import ThreadPoolExecutor
-                def run_in_thread():
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    return new_loop.run_until_complete(coro)
-                with ThreadPoolExecutor() as executor:
-                    future = executor.submit(run_in_thread)
-                    return future.result()
+                # For FastAPI/uvicorn - direct call
+                if not self._is_streamlit():
+                    return asyncio.run(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
+                
+                # For Streamlit - use nest_asyncio
+                import nest_asyncio
+                nest_asyncio.apply()
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
             except Exception as e:
                 raise e
 
@@ -214,6 +197,14 @@ class DocumentProcessor:
         output.seek(0)
         return output.read()
     
+    def _is_streamlit(self) -> bool:
+        """Check if the code is running in a Streamlit environment."""
+        try:
+            import streamlit
+            return True
+        except ImportError:
+            return False
+
     def qna_sync(self, report: str, questions: str) -> str:
         """Synchronous wrapper for the async qna method."""
         import asyncio
