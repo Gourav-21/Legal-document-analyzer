@@ -133,8 +133,8 @@ class DocumentProcessor:
             try:
                 # For FastAPI/uvicorn - direct call
                 if not self._is_streamlit():
-                    return asyncio.run(self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0)))
-                
+                    return self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+
                 # For Streamlit - use nest_asyncio
                 import nest_asyncio
                 nest_asyncio.apply()
