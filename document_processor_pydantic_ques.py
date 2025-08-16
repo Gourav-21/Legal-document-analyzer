@@ -477,7 +477,7 @@ Always check and correct all calculations.
             "attendance_text": attendance_text
         }
 
-    def _build_summary_prompt_from_combined(self, combined_report: str, analysis_type: str) -> str:
+    async def _build_summary_prompt_from_combined(self, combined_report: str, analysis_type: str) -> str:
         """
         Build a prompt to convert the reviewed combined report into the requested summary type.
         """
@@ -554,7 +554,7 @@ Always check and correct all calculations.
             reviewed_combined = combined_report.legal_analysis
             print(reviewed_combined)
             # Step 2: Build a summary prompt from the reviewed combined report
-            prompt = self._build_summary_prompt_from_combined(reviewed_combined, analysis_type)
+            prompt = await self._build_summary_prompt_from_combined(reviewed_combined, analysis_type)
             try:
                 result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
                 analysis = result.data
@@ -732,7 +732,7 @@ ADDITIONAL CONTEXT:
         # elif analysis_type == 'professional':
         #     base_prompt += self._get_professional_instructions()
         elif analysis_type == 'warning_letter':
-            base_prompt += await self._get_warning_letter_instructions()
+            base_prompt += self._get_warning_letter_instructions()
         elif analysis_type == 'easy':
             base_prompt += self._get_easy_instructions()
         elif analysis_type == 'table':
@@ -951,33 +951,9 @@ CRITICAL: Replace ALL placeholders with actual calculated values from the analys
 # CRITICAL: Replace ALL placeholders with actual data from the analysis. Do not output template text.
 # """
 
-    async def _get_warning_letter_instructions(self) -> str:
-        # Get letter format from storage (we'll need to adapt this)
-        # For now, using a default template
-        format_content = """
-[תאריך]
+    def _get_warning_letter_instructions(self) -> str:
+        format_content = self.letter_format.get_format().get('content', '')
 
-לכבוד
-[שם המעסיק]
-[כתובת המעסיק]
-
-הנדון: התראה בגין הפרות חוקי עבודה
-
-בהתבסס על בדיקת המסמכים שבידינו, נמצאו הפרות של חוקי עבודה כמפורט להלן:
-
-[פרטי ההפרות]
-
-הפרות אלו מהוות הפרה של:
-[הפניות לחוקים]
-
-בהתאם לכך, אנו דורשים כי תתקנו את ההפרות הנ"ל תוך [מועד] ימים מקבלת מכתב זה.
-
-אי תיקון ההפרות עלול להוביל לנקיטת הליכים משפטיים.
-
-בכבוד,
-[חתימה]
-"""
-        
         return f"""
 INSTRUCTIONS:
 1. Analyze the provided documents for labor law violations *based exclusively on the retrieved LABOR LAWS and JUDGEMENTS*.
