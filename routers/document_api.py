@@ -22,6 +22,9 @@ class QnARequest(BaseModel):
 class ExportExcelRequest(BaseModel):
     processed_result: dict
 
+class FixOCRRequest(BaseModel):
+    ocr_content: str
+
 @router.post("/export_excel")
 async def export_excel_endpoint(
     request_body: ExportExcelRequest = Body(...)
@@ -146,4 +149,21 @@ async def qna_endpoint(
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail=f"Error in QnA: {str(e)}")
+
+
+@router.post("/fix_ocr")
+async def fix_ocr_endpoint(
+    request_body: FixOCRRequest = Body(...)
+):
+    """
+    Fix and rearrange OCR content using AI to improve readability and structure.
+    """
+    try:
+        fixed_content = await doc_processor.fix_ocr_content(request_body.ocr_content)
+        return {"fixed_content": fixed_content}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(f"Error fixing OCR content: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fixing OCR content: {str(e)}")
 

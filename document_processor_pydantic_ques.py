@@ -526,6 +526,51 @@ Always check and correct all calculations.
         result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
         return result.data
 
+    async def fix_ocr_content(self, ocr_content: str) -> str:
+        """Fix and rearrange OCR content from payslips, attendance sheets, and contracts to improve readability and structure."""
+        prompt = f"""
+You are an expert document processing assistant specializing in Israeli employment documents. Your task is to fix and rearrange OCR-extracted content from payslips, attendance sheets, and employment contracts to make them more readable and properly structured.
+
+🚫 CRITICAL RULES - DO NOT VIOLATE:
+1. DO NOT add, invent, or hallucinate ANY information that is not present in the original OCR content
+2. DO NOT remove or omit ANY information from the original content
+3. DO NOT change numbers, dates, names, or any factual data
+4. ONLY rearrange and fix formatting issues - preserve ALL original content exactly as it appears
+5. If text is unclear or garbled, keep it as-is rather than guessing what it should be
+
+The OCR content is from employment documents and may have issues such as:
+- Misaligned text and spacing in tables
+- Broken words split across lines
+- Incorrect line breaks in salary/payment information
+- Mixed up columns in payslip tables
+- Garbled characters in Hebrew/English text
+- Scattered table data that should be aligned
+
+OCR Content to Fix:
+{ocr_content}
+
+Instructions for Rearrangement:
+1. Fix obvious OCR spacing and alignment issues ONLY
+2. If there are tables (salary details, attendance records), align them properly
+3. Group related information together (employee details, salary breakdown, deductions, etc.)
+4. Maintain proper Hebrew text direction if present
+5. Preserve ALL numbers, amounts, dates, and names exactly as they appear
+6. Keep all original information - just make it more readable
+7. If content appears to be a payslip, organize sections like: Employee Info, Salary Details, Deductions, Net Pay
+8. If content appears to be attendance, organize by dates, hours, etc.
+9. If content appears to be a contract, maintain clause structure
+
+🔍 Remember: You are ONLY fixing formatting and alignment - NOT interpreting or changing content.
+
+Return only the cleaned and restructured content with NO explanations, comments, or additions.
+"""
+        
+        try:
+            result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+            return result.data if hasattr(result, 'data') else str(result)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error fixing OCR content: {get_error_detail(e)}")
+
     async def create_report(self, payslip_text: str = None, contract_text: str = None, 
                           attendance_text: str = None, analysis_type: str = "report", 
                           context: str = None) -> DocumentAnalysisResponse:
