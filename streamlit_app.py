@@ -4,7 +4,7 @@ import sqlite_fix  # This must be imported first
 import streamlit as st
 from PIL import Image
 import io
-from document_processor_openai import DocumentProcessor
+from document_processor_pydantic_ques import DocumentProcessor
 
 # Page title and description
 st.title("Legal Document Image Text Extractor")

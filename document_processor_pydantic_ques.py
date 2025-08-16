@@ -30,8 +30,6 @@ from pydantic_ai.settings import ModelSettings
 from pydantic import BaseModel
 import asyncio
 from agentic_doc.parse import parse
-from judgement import JudgementStorage
-from labour_law import LaborLawStorage
 # nest_asyncio imported conditionally inside __init__ to avoid uvloop conflicts
 # Load environment variables from .env 
 load_dotenv()
