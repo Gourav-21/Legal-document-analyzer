@@ -1328,7 +1328,8 @@ Formatting requirements:
                 return text
             else:
                 # Unknown file type, treat as plain text
-                result = parse(content)
+                result = parse(content)      
+                print(f"Extracting text :{result}")
                 # Return markdown or structured, as you prefer
                 return result[0].markdown
         except Exception as e:
