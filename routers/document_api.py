@@ -49,7 +49,7 @@ async def process_documents(
     doc_types: List[Literal["payslip", "contract", "attendance"]] = Form(...)
 ) -> Dict:
     try:
-        result = doc_processor.process_document(files, doc_types)
+        result = await doc_processor.process_document(files, doc_types)
         return result
     except HTTPException as e:
         raise e

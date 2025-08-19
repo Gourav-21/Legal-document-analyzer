@@ -432,43 +432,41 @@ Always check and correct all calculations.
 
         
 
-    def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, str]:
-        """Process uploaded documents and extract text"""
+    async def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, str]:
+        """Process uploaded documents and extract text concurrently"""
         if not files:
             raise HTTPException(
                 status_code=400,
                 detail="At least one document must be provided"
             )
-          # Handle single file case
+        # Handle single file case
         if isinstance(files, UploadFile):
             files = [files]
             doc_types = [doc_types]
         elif not isinstance(doc_types, list):
             doc_types = [doc_types] * len(files)
-        
-        # Initialize text storage
+
+        async def process_single(file, doc_type, idx):
+            print(f"Processing file: {file.filename} as type: {doc_type}")
+            content = await file.read()
+            extracted_text = await asyncio.to_thread(self._extract_text2, content, file.filename, compress)
+            return (doc_type.lower(), idx, extracted_text)
+
+        tasks = [process_single(file, doc_type, idx+1) for idx, (file, doc_type) in enumerate(zip(files, doc_types))]
+        results = await asyncio.gather(*tasks)
+
         payslip_text = None
         contract_text = None
         attendance_text = None
-        
-        # Initialize counters
-        payslip_counter = 0
-        contract_counter = 0
-        attendance_counter = 0
-        # Process each file based on its type
-        for file, doc_type in zip(files, doc_types):
-            print(f"Processing file: {file.filename} as type: {doc_type}")
-            extracted_text = self._extract_text2(file.file.read(), file.filename, compress=compress)
-            if doc_type.lower() == "payslip":
-                payslip_counter += 1
-                payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
-            elif doc_type.lower() == "contract":
-                contract_counter += 1
-                contract_text = f"Contract {contract_counter}:\n{extracted_text}" if contract_text is None else f"{contract_text}\n\nContract {contract_counter}:\n{extracted_text}"
-            elif doc_type.lower() == "attendance":
-                attendance_counter += 1
-                attendance_text = f"Attendance {attendance_counter}:\n{extracted_text}" if attendance_text is None else f"{attendance_text}\n\nAttendance {attendance_counter}:\n{extracted_text}"
-        
+
+        for doc_type, counter, extracted_text in results:
+            if doc_type == "payslip":
+                payslip_text = f"Payslip {counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {counter}:\n{extracted_text}"
+            elif doc_type == "contract":
+                contract_text = f"Contract {counter}:\n{extracted_text}" if contract_text is None else f"{contract_text}\n\nContract {counter}:\n{extracted_text}"
+            elif doc_type == "attendance":
+                attendance_text = f"Attendance {counter}:\n{extracted_text}" if attendance_text is None else f"{attendance_text}\n\nAttendance {counter}:\n{extracted_text}"
+
         return {
             "payslip_text": payslip_text,
             "contract_text": contract_text,
