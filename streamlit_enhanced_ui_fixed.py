@@ -140,11 +140,20 @@ if 'new_rule_checks' not in st.session_state:
 if 'new_rule_penalties' not in st.session_state:
     st.session_state.new_rule_penalties = []
 
+# Initialize session state for Hebrew new rule builder
+if 'new_rule_checks_heb' not in st.session_state:
+    st.session_state.new_rule_checks_heb = []
+
+if 'new_rule_penalties_heb' not in st.session_state:
+    st.session_state.new_rule_penalties_heb = []
+
 # Tab navigation for better UX (Dashboard removed)
 # Combined tab1 and tab4 for comprehensive analysis
-tab1, tab2 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "📋 Payslip Analysis & Testing", 
-    "⚖️ Rule Management"
+    "⚖️ Rule Management",
+    "📋 ניתוח תלושי שכר ובדיקה",
+    "⚖️ ניהול כללים"
 ])
 
 # Payslip Analysis Tab
@@ -802,7 +811,7 @@ overtime_hours, total_hours, etc.
                                         st.markdown(f"**Check {j+1}:** {check.get('violation_message', 'No message')}")
                                         st.code(f"Check ID: {check.get('id', 'N/A')}")
                                         st.code(f"Condition: {check['condition']}")
-                                        st.code(f"Underpaid Amount Formula: {check['underpaid_amount']}")
+                                        st.code(f"Underpaid Amount: {check['underpaid_amount']}")
                                         if j < len(test_result.get('check_results', [])):
                                             check_result = test_result['check_results'][j]
                                             st.info(f"Result: Condition = {check_result.get('condition_result', 'N/A')}, Amount = ₪{check_result['amount']:.2f}")
@@ -1204,26 +1213,6 @@ overtime_hours, total_hours, etc.
                         else:
                             st.error("❌ Failed to save rule to file")
                         
-                except json.JSONDecodeError as e:
-                    st.error(f"❌ Invalid JSON format: {e}")
-                    st.markdown("**JSON Format Help:**")
-                    st.code('''
-Checks format:
-[
-  {
-    "id": "first_2h",
-    "condition": "attendance.overtime_hours > 0",
-    "underpaid_amount": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
-    "violation_message": "First 2 hours of overtime must be paid at 125%"
-  }
-]
-
-Penalty format:
-[
-  "total_underpaid_amount = check_results[0]",
-  "penalty_amount = total_underpaid_amount * 0.05"
-]
-                    ''')
                 except Exception as e:
                     st.error(f"❌ Error creating rule: {e}")
     
@@ -1382,6 +1371,1114 @@ Penalty format:
     
     # Sample context display
     st.markdown("### 📋 Sample Context Data")
+    sample_context = {
+        'payslip': {
+            'employee_id': 'EMP_001',
+            'month': '2024-07',
+            'base_salary': 4800.0,
+            'overtime_rate': 35.0,
+            'overtime_pay': 175.0,
+            'total_pay': 4975.0
+        },
+        'attendance': {
+            'employee_id': 'EMP_001',
+            'month': '2024-07',
+            'regular_hours': 160,
+            'overtime_hours': 5,
+            'total_hours': 165
+        },
+        'contract': {
+            'employee_id': 'EMP_001',
+            'hourly_rate': 30.0,
+            'position': 'Software Developer'
+        }
+    }
+    st.json(sample_context)
+
+# Hebrew Payslip Analysis Tab
+with tab3:
+  
+    st.header("🎯 השוואת סוגי ניתוח ובדיקה")
+    st.markdown("**בדוק סוגי ניתוח שונים עם אותם נתונים כדי להשוות תוצאות**")
+    
+
+    # Test data setup section with input method selection
+    st.subheader("📋 הגדרת נתוני בדיקה")
+    input_method_heb = st.radio("בחר שיטת קלט:", ["הזנה ידנית", "העלאת JSON", "השתמש בנתונים לדוגמה"], key="test_input_method_heb")
+
+    test_payslip_data_heb = None
+    test_attendance_data_heb = None
+    test_contract_data_heb = None
+
+    if input_method_heb == "הזנה ידנית":
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**מידע על העובד**")
+            test_employee_id_heb = st.text_input("מזהה עובד", value="TEST_001", key="test_emp_id_heb")
+            test_month_heb = st.text_input("חודש (YYYY-MM)", value="2024-01", key="test_month_heb")
+        with col2:
+            st.markdown("**חלקי נתונים לכלול**")
+            include_payslip_heb = st.checkbox("כלול נתוני תלוש", value=True, key="test_include_payslip_heb")
+            include_contract_heb = st.checkbox("כלול נתוני חוזה", value=True, key="test_include_contract_heb")
+            include_attendance_heb = st.checkbox("כלול נתוני נוכחות", value=True, key="test_include_attendance_heb")
+
+        if include_payslip_heb:
+            st.markdown("---")
+            st.markdown("### 💰 פרטי תלוש")
+            col1, col2 = st.columns(2)
+            with col1:
+                test_base_salary_heb = st.number_input("משכורת בסיס (₪)", min_value=0.0, value=5000.0, step=100.0, key="test_base_salary_heb")
+                test_overtime_rate_heb = st.number_input("תעריף שעות נוספות ששולם (₪/שעה)", min_value=0.0, value=30.0, step=0.1, key="test_overtime_rate_heb")
+                test_overtime_pay_heb = st.number_input("סה\"כ תשלום שעות נוספות (₪)", min_value=0.0, value=300.0, step=10.0, key="test_overtime_pay_heb")
+            with col2:
+                test_hourly_rate_heb = st.number_input("תעריף שעתי לפי חוזה (₪)", min_value=0.0, value=26.88, step=0.1, key="test_hourly_rate_heb")
+                test_regular_hours_heb = st.number_input("שעות רגילות", min_value=0, value=186, step=1, key="test_regular_hours_heb")
+                test_overtime_hours_heb = st.number_input("שעות נוספות", min_value=0, value=10, step=1, key="test_overtime_hours_heb")
+            test_payslip_data_heb = {
+                "employee_id": test_employee_id_heb,
+                "month": test_month_heb,
+                "base_salary": test_base_salary_heb,
+                "overtime_hours": test_overtime_hours_heb,
+                "overtime_pay": test_overtime_pay_heb,
+                "overtime_rate": test_overtime_rate_heb,
+                "total_salary": test_base_salary_heb + test_overtime_pay_heb,
+                "hours_worked": test_regular_hours_heb + test_overtime_hours_heb,
+                "hourly_rate": test_hourly_rate_heb
+            }
+        if include_attendance_heb:
+            st.markdown("---")
+            st.markdown("### ⏰ פרטי נוכחות")
+            col1, col2 = st.columns(2)
+            with col1:
+                test_regular_hours_att_heb = st.number_input("שעות רגילות (נוכחות)", min_value=0, value=186, step=1, key="test_attendance_regular_hours_heb")
+                test_overtime_hours_att_heb = st.number_input("שעות נוספות (נוכחות)", min_value=0, value=10, step=1, key="test_attendance_overtime_hours_heb")
+            with col2:
+                test_days_worked_heb = st.number_input("ימי עבודה", min_value=0, value=22, step=1, key="test_days_worked_heb")
+                test_sick_days_heb = st.number_input("ימי מחלה", min_value=0, value=0, step=1, key="test_sick_days_heb")
+                test_vacation_days_heb = st.number_input("ימי חופשה", min_value=0, value=0, step=1, key="test_vacation_days_heb")
+            test_attendance_data_heb = {
+                "employee_id": test_employee_id_heb,
+                "month": test_month_heb,
+                "days_worked": test_days_worked_heb,
+                "regular_hours": test_regular_hours_att_heb,
+                "overtime_hours": test_overtime_hours_att_heb,
+                "total_hours": test_regular_hours_att_heb + test_overtime_hours_att_heb,
+                "sick_days": test_sick_days_heb,
+                "vacation_days": test_vacation_days_heb
+            }
+        if include_contract_heb:
+            st.markdown("---")
+            st.markdown("### 📋 פרטי חוזה")
+            col1, col2 = st.columns(2)
+            with col1:
+                test_hourly_rate_con_heb = st.number_input("תעריף שעתי (חוזה)", min_value=0.0, value=26.88, step=0.1, key="test_contract_hourly_rate_heb")
+                test_minimum_wage_monthly_heb = st.number_input("שכר מינימום חודשי", min_value=0.0, value=5300.0, step=10.0, key="test_minimum_wage_monthly_heb")
+                test_minimum_wage_hourly_heb = st.number_input("שכר מינימום שעתי", min_value=0.0, value=29.12, step=0.1, key="test_minimum_wage_hourly_heb")
+            with col2:
+                test_overtime_rate_125_heb = st.number_input("תעריף שעות נוספות 125%", min_value=0.0, value=1.25, step=0.01, key="test_overtime_rate_125_heb")
+                test_overtime_rate_150_heb = st.number_input("תעריף שעות נוספות 150%", min_value=0.0, value=1.50, step=0.01, key="test_overtime_rate_150_heb")
+                test_standard_hours_per_month_heb = st.number_input("שעות סטנדרטיות לחודש", min_value=0, value=186, step=1, key="test_standard_hours_per_month_heb")
+                test_standard_hours_per_day_heb = st.number_input("שעות סטנדרטיות ליום", min_value=0, value=8, step=1, key="test_standard_hours_per_day_heb")
+                test_vacation_days_per_year_heb = st.number_input("ימי חופשה לשנה", min_value=0, value=14, step=1, key="test_vacation_days_per_year_heb")
+                test_sick_days_per_year_heb = st.number_input("ימי מחלה לשנה", min_value=0, value=18, step=1, key="test_sick_days_per_year_heb")
+            test_contract_data_heb = {
+                "employee_id": test_employee_id_heb,
+                "minimum_wage_monthly": test_minimum_wage_monthly_heb,
+                "minimum_wage_hourly": test_minimum_wage_hourly_heb,
+                "hourly_rate": test_hourly_rate_con_heb,
+                "overtime_rate_125": test_overtime_rate_125_heb,
+                "overtime_rate_150": test_overtime_rate_150_heb,
+                "standard_hours_per_month": test_standard_hours_per_month_heb,
+                "standard_hours_per_day": test_standard_hours_per_day_heb,
+                "vacation_days_per_year": test_vacation_days_per_year_heb,
+                "sick_days_per_year": test_sick_days_per_year_heb
+            }
+
+    elif input_method_heb == "העלאת JSON":
+        uploaded_file_heb = st.file_uploader("העלה קובץ JSON של תלוש", type=['json'], key="test_uploaded_file_heb")
+        if uploaded_file_heb:
+            try:
+                data = json.load(uploaded_file_heb)
+                test_payslip_data_heb = data.get('payslip', [{}])[0]
+                test_attendance_data_heb = data.get('attendance', [{}])[0]
+                test_contract_data_heb = data.get('contract', [{}])[0]
+                st.success("✅ הנתונים נטענו בהצלחה!")
+            except Exception as e:
+                st.error(f"שגיאה בטעינת הקובץ: {e}")
+
+    elif input_method_heb == "השתמש בנתונים לדוגמה":
+        sample_data = load_sample_data()
+        if sample_data:
+            test_payslip_data_heb = sample_data['payslip'][0]
+            test_attendance_data_heb = sample_data['attendance'][0]
+            test_contract_data_heb = sample_data['contract'][0]
+            st.info("משתמש בנתונים לדוגמה לניתוח")
+        else:
+            st.error("אין נתונים לדוגמה זמינים")
+    
+    # Show test data preview
+    with st.expander("📋 תצוגה מקדימה של נתוני בדיקה", expanded=False):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("**נתוני תלוש:**")
+            st.json(test_payslip_data_heb)
+        with col2:
+            st.markdown("**נתוני נוכחות:**")
+            st.json(test_attendance_data_heb)
+        with col3:
+            st.markdown("**נתוני חוזה:**")
+            st.json(test_contract_data_heb)
+
+    # Analysis types to test
+    analysis_types_heb = [
+        ("violations_list", "📋 רשימת הפרות פשוטה"),
+        ("easy", "😊 סיכום ידידותי למשתמש"),
+        ("table", "📊 פורמט טבלה מאורגן"),
+        ("violation_count_table", "📈 טבלת סטטיסטיקות"),
+        ("combined", "⚖️ ניתוח משפטי מפורט"),
+        ("report", "📄 דוח מעסיק")
+    ]
+
+    st.markdown("---")
+    st.subheader("🚀 בדוק את כל סוגי הניתוח")
+    
+    # Test all analysis types
+    if st.button("🚀 בדוק את כל סוגי הניתוח", type="primary", key="test_all_analysis_types_heb"):
+        st.markdown("## 📊 השוואת תוצאות ניתוח")
+        for analysis_type, description in analysis_types_heb:
+            with st.expander(f"{description} ({analysis_type})", expanded=False):
+                with st.spinner(f"מריץ ניתוח {analysis_type}..."):
+                    try:
+                        # Import DocumentProcessor
+                        from document_processor_pydantic_ques import DocumentProcessor
+                        processor = DocumentProcessor()
+                        
+                        # Convert single dicts to lists for create_report_with_rule_engine
+                        payslip_list = [test_payslip_data_heb] if test_payslip_data_heb else []
+                        attendance_list = [test_attendance_data_heb] if test_attendance_data_heb else []
+                        
+                        # Call create_report_with_rule_engine
+                        result = asyncio.run(processor.create_report_with_rule_engine(
+                            payslip_data=payslip_list,
+                            attendance_data=attendance_list,
+                            contract_data=test_contract_data_heb,
+                            analysis_type=analysis_type
+                        ))
+                        
+                        # Show summary metrics for the new format
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            if result.get('violations_count', 0) > 0:
+                                st.metric("סטטוס", "הפרות")
+                            elif result.get('inconclusive_count', 0) > 0:
+                                st.metric("סטטוס", "לא חד משמעי")
+                            else:
+                                st.metric("סטטוס", "תואם")
+                        with col2:
+                            st.metric("הפרות", result.get('violations_count', 0))
+                        with col3:
+                            st.metric("לא חד משמעי", result.get('inconclusive_count', 0))
+                        with col4:
+                            if 'total_combined' in result:
+                                combined_total = result['total_combined']
+                            else:
+                                total_underpaid = result.get('total_underpaid', result.get('total_underpaid_amount', 0.0))
+                                total_penalties = result.get('total_penalties', result.get('penalty_amount', 0.0))
+                                combined_total = total_underpaid + total_penalties
+                            st.metric("סה\"כ (חסר תשלום + קנסות)", f"₪{combined_total:,.2f}")
+                        
+                        # Show the formatted output
+                        st.markdown("### 📋 תוצאת ניתוח:")
+                        if 'legal_analysis' in result:
+                            if analysis_type in ["table", "violation_count_table"]:
+                                st.code(result['legal_analysis'], language="")
+                            else:
+                                st.markdown(result['legal_analysis'])
+                        else:
+                            st.info("הניתוח הושלם אך אין תוצאה מעוצבת זמינה.")
+                        
+                        # Add download button for each analysis
+                        if 'legal_analysis' in result:
+                            st.download_button(
+                                label=f"📥 הורד דוח {analysis_type}",
+                                data=result['legal_analysis'],
+                                file_name=f"analysis_{analysis_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                mime="text/plain",
+                                key=f"download_{analysis_type}_heb"
+                            )
+                        
+                    except Exception as e:
+                        st.error(f"❌ שגיאה בהרצת ניתוח {analysis_type}: {str(e)}")
+
+    # Individual analysis type testing
+    st.markdown("---")
+    st.subheader("🔍 בדוק סוג ניתוח בודד")
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        selected_test_type_heb = st.selectbox(
+            "בחר סוג ניתוח לבדיקה:",
+            options=[at[0] for at in analysis_types_heb],
+            format_func=lambda x: next(desc for code, desc in analysis_types_heb if code == x),
+            key="individual_analysis_type_heb"
+        )
+
+    with col2:
+        test_individual_button_heb = st.button("🧪 בדוק סוג נבחר", key="test_individual_type_heb")
+
+    # Display results outside of columns for full width
+    if test_individual_button_heb:
+        with st.spinner(f"מריץ ניתוח {selected_test_type_heb}..."):
+            try:
+                # Import DocumentProcessor
+                from document_processor_pydantic_ques import DocumentProcessor
+                processor = DocumentProcessor()
+
+                # Convert single dicts to lists for create_report_with_rule_engine
+                payslip_list = [test_payslip_data_heb] if test_payslip_data_heb else []
+                attendance_list = [test_attendance_data_heb] if test_attendance_data_heb else []
+
+                # Call create_report_with_rule_engine
+                result = asyncio.run(processor.create_report_with_rule_engine(
+                    payslip_data=payslip_list,
+                    attendance_data=attendance_list,
+                    contract_data=test_contract_data_heb,
+                    analysis_type=selected_test_type_heb
+                ))
+
+                st.success(f"✅ ניתוח {selected_test_type_heb} הושלם!")
+
+                # Show detailed results using the new format
+                st.markdown("### 📊 תוצאות מפורטות:")
+
+                # Summary metrics
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    if result.get('violations_count', 0) > 0:
+                        st.metric("סטטוס", "נמצאו הפרות")
+                    elif result.get('inconclusive_count', 0) > 0:
+                        st.metric("סטטוס", "לא חד משמעי")
+                    else:
+                        st.metric("סטטוס", "תואם")
+                with col2:
+                    st.metric("הפרות שנמצאו", result.get('violations_count', 0))
+                with col3:
+                    st.metric("מקרים לא חד משמעיים", result.get('inconclusive_count', 0))
+                with col4:
+                    if 'total_combined' in result:
+                        combined_total = result['total_combined']
+                    else:
+                        total_underpaid = result.get('total_underpaid', result.get('total_underpaid_amount', 0.0))
+                        total_penalties = result.get('total_penalties', result.get('penalty_amount', 0.0))
+                        combined_total = total_underpaid + total_penalties
+                    st.metric("סה\"כ (חסר תשלום + קנסות)", f"₪{combined_total:,.2f}")
+
+                # Analysis output
+                st.markdown("### 📋 תוצאת ניתוח:")
+                if 'legal_analysis' in result:
+                    if selected_test_type_heb in ["table", "violation_count_table"]:
+                        st.code(result['legal_analysis'], language="")
+                    else:
+                        st.markdown(result['legal_analysis'])
+                else:
+                    st.info("הניתוח הושלם אך אין תוצאה מעוצבת זמינה.")
+
+                # Technical details
+                with st.expander("🔧 פרטים טכניים", expanded=False):
+                    st.markdown("**תוצאת ניתוח:**")
+                    st.json(result)
+
+            except Exception as e:
+                st.error(f"❌ שגיאה: {str(e)}")
+                st.code(str(e))
+
+with tab4:
+    st.header("⚖️ ניהול כללי חוק העבודה")
+    
+    # Load rules data fresh each time to ensure we have latest changes
+    rules_data = load_rules_data()
+    
+    # Display current rules in a more organized way
+    st.subheader("📋 כללים נוכחיים")
+    
+    if rules_data['rules']:
+        # Create a summary table first
+        rules_summary = []
+        for rule in rules_data['rules']:
+            rules_summary.append({
+                'מזהה כלל': rule['rule_id'],
+                'שם': rule['name'],
+                'הפניה לחוק': rule['law_reference'],
+                'תקף מתאריך': rule['effective_from'],
+                'תקף עד': rule.get('effective_to', 'רציף'),
+                'בדיקות': len(rule['checks'])
+            })
+        
+        rules_df = pd.DataFrame(rules_summary)
+        st.dataframe(rules_df, use_container_width=True)
+        
+        # Detailed view with better organization
+        st.markdown("### 🔍 תצוגה מפורטת של כלל")
+        if len(rules_data['rules']) > 0:
+            selected_rule_heb = st.selectbox(
+                "בחר כלל לצפייה בפרטים:",
+                options=range(len(rules_data['rules'])),
+                format_func=lambda x: f"{rules_data['rules'][x]['rule_id']} - {rules_data['rules'][x]['name']}",
+                key="selected_rule_heb"
+            )
+        else:
+            selected_rule_heb = None
+            st.info("אין כללים זמינים לבחירה.")
+        
+        if selected_rule_heb is not None and selected_rule_heb < len(rules_data['rules']):
+            rule = rules_data['rules'][selected_rule_heb]
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.markdown(f"**מזהה כלל:** {rule['rule_id']}")
+                st.markdown(f"**שם:** {rule['name']}")
+                st.markdown(f"**הפניה לחוק:** {rule['law_reference']}")
+                st.markdown(f"**תיאור:** {rule['description']}")
+                st.markdown(f"**תקופת תוקף:** {rule['effective_from']} עד {rule.get('effective_to', 'רציף')}")
+                
+                st.markdown("**בדיקות:**")
+                for j, check in enumerate(rule['checks'], 1):
+                    with st.expander(f"בדיקה {j}: {check.get('violation_message', 'אין הודעה')}"):
+                        st.code(f"מזהה בדיקה: {check.get('id', 'לא זמין')}", language="python")
+                        st.code(f"תנאי: {check['condition']}", language="python")
+                        st.code(f"סכום חסר תשלום: {check['underpaid_amount']}", language="python")
+                
+                st.markdown("**חישוב קנס:**")
+                for penalty_line in rule['penalty']:
+                    st.code(penalty_line, language="python")
+            
+            with col2:
+                st.markdown("**פעולות**")
+                
+                # Edit Rule
+                if st.button("📝 ערוך כלל", key=f"edit_{selected_rule_heb}_heb"):
+                    st.session_state[f'editing_rule_{selected_rule_heb}_heb'] = True
+                
+                # Delete Rule
+                if st.button("🗑️ מחק כלל", key=f"delete_{selected_rule_heb}_heb", type="secondary"):
+                    if st.session_state.get(f'confirm_delete_{selected_rule_heb}_heb', False):
+                        # Actually delete the rule
+                        rule_id_to_delete = rule['rule_id']
+                        rules_data['rules'].pop(selected_rule_heb)
+                        if save_rules_data(rules_data):
+                            st.success(f"✅ כלל '{rule_id_to_delete}' נמחק בהצלחה!")
+                            # Clear session state
+                            st.session_state[f'confirm_delete_{selected_rule_heb}_heb'] = False
+                            # Clear any editing states for all rules since indices may have changed
+                            for key in list(st.session_state.keys()):
+                                if key.startswith('editing_rule_') or key.startswith('testing_rule_') or key.startswith('confirm_delete_'):
+                                    del st.session_state[key]
+                            st.rerun()
+                        else:
+                            st.error("❌ נכשל במחיקת הכלל")
+                    else:
+                        st.session_state[f'confirm_delete_{selected_rule_heb}_heb'] = True
+                        st.warning("⚠️ לחץ שוב לאישור מחיקה")
+                
+                # Test Rule
+                if st.button("🧪 בדוק כלל", key=f"test_{selected_rule_heb}_heb"):
+                    st.session_state[f'testing_rule_{selected_rule_heb}_heb'] = True
+                
+                # Cancel confirmations
+                if st.session_state.get(f'confirm_delete_{selected_rule_heb}_heb', False):
+                    if st.button("❌ בטל מחיקה", key=f"cancel_delete_{selected_rule_heb}_heb"):
+                        st.session_state[f'confirm_delete_{selected_rule_heb}_heb'] = False
+                        st.rerun()
+        
+        # Edit Rule Form
+        if selected_rule_heb is not None and selected_rule_heb < len(rules_data['rules']) and st.session_state.get(f'editing_rule_{selected_rule_heb}_heb', False):
+            try:
+                # Get the current rule data
+                current_rule = rules_data['rules'][selected_rule_heb]
+                st.markdown("---")
+                st.subheader(f"📝 עריכת כלל: {current_rule['rule_id']}")
+                
+                with st.form(f"edit_rule_form_{selected_rule_heb}_heb"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        edit_rule_id_heb = st.text_input("מזהה כלל", value=current_rule['rule_id'], key=f"edit_rule_id_{selected_rule_heb}_heb")
+                        edit_name_heb = st.text_input("שם כלל", value=current_rule['name'], key=f"edit_name_{selected_rule_heb}_heb")
+                        edit_law_reference_heb = st.text_input("הפניה לחוק", value=current_rule['law_reference'], key=f"edit_law_reference_{selected_rule_heb}_heb")
+                        edit_description_heb = st.text_area("תיאור", value=current_rule['description'], height=80, key=f"edit_description_{selected_rule_heb}_heb")
+                    
+                    with col2:
+                        edit_effective_from_heb = st.date_input("תקף מתאריך", 
+                                                           value=datetime.strptime(current_rule['effective_from'], '%Y-%m-%d').date(), key=f"edit_effective_from_{selected_rule_heb}_heb")
+                        edit_effective_to_heb = st.text_input("תקף עד", value=current_rule.get('effective_to', ''), key=f"edit_effective_to_{selected_rule_heb}_heb")
+                        
+                        st.markdown("**פונקציות זמינות:**")
+                        st.code("min(), max(), abs(), round()")
+                        
+                        st.markdown("**משתנים זמינים:**")
+                        st.code("""
+payslip.*, attendance.*, contract.*
+employee_id, month, hourly_rate, 
+overtime_hours, total_hours, etc.
+                        """)
+                    
+                    # Initialize session state for edit rule
+                    if f'edit_rule_checks_{selected_rule_heb}_heb' not in st.session_state:
+                        st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb'] = current_rule['checks'].copy()
+
+                    if f'edit_rule_penalties_{selected_rule_heb}_heb' not in st.session_state:
+                        st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb'] = current_rule['penalty'].copy()
+
+                    # Check Management within edit form
+                    st.markdown("**בדיקות כלל:**")
+
+                    # Display current checks
+                    if st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb']:
+                        st.markdown("**בדיקות נוכחיות:**")
+                        for i, check in enumerate(st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb']):
+                            with st.expander(f"בדיקה {i+1}: {check.get('violation_message', 'אין הודעה')}"):
+                                st.code(f"מזהה בדיקה: {check.get('id', 'לא זמין')}")
+                                st.code(f"תנאי: {check['condition']}")
+                                st.code(f"נוסחת סכום חסר תשלום: {check['underpaid_amount']}")
+                                # Remove button for each check
+                                if st.form_submit_button(f"🗑️ הסר בדיקה {i+1}"):
+                                    st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb'].pop(i)
+
+                    # Add new check inputs
+                    st.markdown("**הוסף בדיקה חדשה:**")
+                    col1, col2 = st.columns([1, 1])
+                    with col1:
+                        edit_new_check_id_heb = st.text_input("מזהה בדיקה", key=f"edit_new_check_id_{selected_rule_heb}_heb", help="מזהה ייחודי לבדיקה זו", placeholder="first_2h")
+                        edit_new_condition_heb = st.text_input("תנאי", key=f"edit_new_condition_{selected_rule_heb}_heb", help="למשל: attendance.overtime_hours > 0", placeholder="attendance.overtime_hours > 0")
+                        edit_new_underpaid_amount_heb = st.text_input("נוסחת סכום חסר תשלום", key=f"edit_new_underpaid_amount_{selected_rule_heb}_heb", help="למשל: (contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)", placeholder="(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)")
+                    with col2:
+                        edit_new_violation_message_heb = st.text_input("הודעת הפרה", key=f"edit_new_violation_message_{selected_rule_heb}_heb", help="למשל: הפרת תעריף שעות נוספות", placeholder="הפרת תעריף שעות נוספות")
+
+                    # Penalty Management within edit form
+                    st.markdown("**חישוב קנס:**")
+
+                    # Display current penalties
+                    if st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb']:
+                        st.markdown("**שורות קנס נוכחיות:**")
+                        for i, penalty in enumerate(st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb']):
+                            col1, col2 = st.columns([4, 1])
+                            with col1:
+                                st.code(f"{i+1}. {penalty}")
+                            with col2:
+                                if st.form_submit_button(f"🗑️ Remove Penalty {i+1}"):
+                                    st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb'].pop(i)
+
+                    # Add new penalty line input
+                    st.markdown("**הוסף שורת קנס חדשה:**")
+                    edit_new_penalty_line_heb = st.text_input("נוסחת קנס", key=f"edit_new_penalty_line_{selected_rule_heb}_heb", help="למשל: total_underpaid_amount = check_results[0]", placeholder="total_underpaid_amount = check_results[0] , penalty_amount= total_underpaid_amount * 5")
+
+                    # Action buttons
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        edit_add_check_btn_heb = st.form_submit_button("➕ הוסף בדיקה")
+                    with col2:
+                        edit_add_penalty_btn_heb = st.form_submit_button("➕ הוסף קנס")
+                    with col3:
+                        edit_clear_all_btn_heb = st.form_submit_button("🗑️ נקה הכל")
+                    with col4:
+                        edit_save_changes_btn_heb = st.form_submit_button("💾 שמור שינויים", type="primary")
+
+                    # Handle form submissions
+                    if edit_add_check_btn_heb:
+                        if edit_new_check_id_heb and edit_new_condition_heb and edit_new_underpaid_amount_heb and edit_new_violation_message_heb:
+                            st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb'].append({
+                                "id": edit_new_check_id_heb,
+                                "condition": edit_new_condition_heb,
+                                "underpaid_amount": edit_new_underpaid_amount_heb,
+                                "violation_message": edit_new_violation_message_heb
+                            })
+                            st.success("✅ בדיקה נוספה בהצלחה!")
+                        else:
+                            st.error("אנא מלא את כל השדות לבדיקה")
+
+                    if edit_add_penalty_btn_heb:
+                        if edit_new_penalty_line_heb:
+                            st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb'].append(edit_new_penalty_line_heb)
+                            st.success("✅ שורת קנס נוספה בהצלחה!")
+                        else:
+                            st.error("אנא הכנס נוסחת קנס")
+
+                    if edit_clear_all_btn_heb:
+                        st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb'] = []
+                        st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb'] = []
+                        st.success("✅ כל הבדיקות והקנסות נוקו!")
+
+                    if edit_save_changes_btn_heb:
+                        if not all([edit_rule_id_heb, edit_name_heb, edit_law_reference_heb, edit_description_heb]):
+                            st.error("❌ אנא מלא את כל השדות הנדרשים")
+                        else:
+                            try:
+                                # Check if rule ID already exists (excluding current rule)
+                                existing_ids = [r['rule_id'] for i, r in enumerate(rules_data['rules']) if i != selected_rule_heb]
+                                if edit_rule_id_heb in existing_ids:
+                                    st.error(f"❌ מזהה כלל '{edit_rule_id_heb}' כבר קיים. אנא בחר מזהה אחר.")
+                                else:
+                                    # Use session state lists
+                                    edit_checks_json_heb = st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb']
+                                    edit_penalty_json_heb = st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb']
+
+                                    # Validate checks structure
+                                    validation_passed = True
+                                    if not edit_checks_json_heb:
+                                        st.error("❌ אנא הוסף לפחות בדיקה אחת")
+                                        validation_passed = False
+                                    if not edit_penalty_json_heb:
+                                        st.error("❌ אנא הוסף לפחות שורת קנס אחת")
+                                        validation_passed = False
+
+                                    for i, check in enumerate(edit_checks_json_heb):
+                                        required_fields = ['id', 'condition', 'underpaid_amount', 'violation_message']
+                                        missing_fields = [f for f in required_fields if f not in check]
+                                        if missing_fields:
+                                            st.error(f"❌ בדיקה {i+1} חסרים שדות נדרשים: {missing_fields}")
+                                            validation_passed = False
+
+                                    if not validation_passed:
+                                        st.stop()
+
+                                    # Update rule
+                                    updated_rule = {
+                                        "rule_id": edit_rule_id_heb,
+                                        "name": edit_name_heb,
+                                        "law_reference": edit_law_reference_heb,
+                                        "description": edit_description_heb,
+                                        "effective_from": edit_effective_from_heb.strftime('%Y-%m-%d'),
+                                        "effective_to": edit_effective_to_heb if edit_effective_to_heb else None,
+                                        "checks": edit_checks_json_heb,
+                                        "penalty": edit_penalty_json_heb,
+                                        "created_date": current_rule.get('created_date', datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')),
+                                        "updated_date": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+                                    }
+
+                                    rules_data['rules'][selected_rule_heb] = updated_rule
+                                    if save_rules_data(rules_data):
+                                        st.success(f"✅ כלל '{edit_rule_id_heb}' עודכן בהצלחה!")
+                                        # Clear session state
+                                        if f'edit_rule_checks_{selected_rule_heb}_heb' in st.session_state:
+                                            del st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb']
+                                        if f'edit_rule_penalties_{selected_rule_heb}_heb' in st.session_state:
+                                            del st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb']
+                                        st.session_state[f'editing_rule_{selected_rule_heb}_heb'] = False
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ נכשל בשמירת הכלל")
+
+                            except Exception as e:
+                                st.error(f"❌ שגיאה בעדכון כלל: {e}")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        pass  # Save Changes button moved above
+                    with col2:
+                        if st.form_submit_button("❌ בטל עריכה"):
+                            st.session_state[f'editing_rule_{selected_rule_heb}_heb'] = False
+                            # Clear session state
+                            if f'edit_rule_checks_{selected_rule_heb}_heb' in st.session_state:
+                                del st.session_state[f'edit_rule_checks_{selected_rule_heb}_heb']
+                            if f'edit_rule_penalties_{selected_rule_heb}_heb' in st.session_state:
+                                del st.session_state[f'edit_rule_penalties_{selected_rule_heb}_heb']
+                            st.rerun()
+            except (IndexError, KeyError) as e:
+                st.error(f"❌ שגיאה בגישה לנתוני כלל: {e}")
+                st.session_state[f'editing_rule_{selected_rule_heb}_heb'] = False
+                st.rerun()
+        
+        # Test Rule Section
+        if selected_rule_heb is not None and selected_rule_heb < len(rules_data['rules']) and st.session_state.get(f'testing_rule_{selected_rule_heb}_heb', False):
+            try:
+                # Get the current rule data
+                current_rule = rules_data['rules'][selected_rule_heb]
+                st.markdown("---")
+                st.subheader(f"🧪 בדיקת כלל: {current_rule['rule_id']}")
+                
+                with st.form(f"test_rule_form_{selected_rule_heb}_heb"):
+                    st.markdown("**הכנס נתוני בדיקה לאימות הכלל:**")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        test_employee_id_heb = st.text_input("מזהה עובד", value="TEST_001", key=f"test_employee_id_{selected_rule_heb}_heb")
+                        test_month_heb = st.text_input("חודש (YYYY-MM)", value="2024-07", key=f"test_month_{selected_rule_heb}_heb")
+                        test_hourly_rate_heb = st.number_input("תעריף שעתי", value=30.0, step=0.1, key=f"test_hourly_rate_{selected_rule_heb}_heb")
+                        test_base_salary_heb = st.number_input("משכורת בסיס", value=4800.0, step=10.0, key=f"test_base_salary_{selected_rule_heb}_heb")
+                    
+                    with col2:
+                        test_overtime_rate_heb = st.number_input("תעריף שעות נוספות ששולם", value=35.0, step=0.1, key=f"test_overtime_rate_{selected_rule_heb}_heb")
+                        test_overtime_hours_heb = st.number_input("שעות נוספות", value=5, step=1, key=f"test_overtime_hours_{selected_rule_heb}_heb")
+                        test_regular_hours_heb = st.number_input("שעות רגילות", value=160, step=1, key=f"test_regular_hours_{selected_rule_heb}_heb")
+                        test_total_hours_heb = test_regular_hours_heb + test_overtime_hours_heb
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        run_test_heb = st.form_submit_button("🚀 הרץ בדיקה", type="primary")
+                        if run_test_heb:
+                            test_payslip = {
+                                "employee_id": test_employee_id_heb,
+                                "month": test_month_heb,
+                                "base_salary": test_base_salary_heb,
+                                "overtime_rate": test_overtime_rate_heb
+                            }
+                            test_attendance = {
+                                "employee_id": test_employee_id_heb,
+                                "month": test_month_heb,
+                                "overtime_hours": test_overtime_hours_heb,
+                                "total_hours": test_total_hours_heb
+                            }
+                            test_contract = {
+                                "employee_id": test_employee_id_heb,
+                                "hourly_rate": test_hourly_rate_heb
+                            }
+                            test_result = test_single_rule(current_rule, test_payslip, test_attendance, test_contract)
+                            if not test_result["applicable"]:
+                                st.warning(f"⚠️ {test_result['message']}")
+                            elif "error" in test_result:
+                                st.error(f"❌ הבדיקה נכשלה: {test_result['error']}")
+                                if "context_used" in test_result:
+                                    st.markdown("**נתונים שהיו בשימוש בזמן השגיאה:**")
+                                    st.json(test_result["context_used"])
+                            elif test_result["compliant"]:
+                                st.success("✅ הבדיקה עברה! לא נמצאו הפרות!")
+                                # Show detailed calculation even for passing tests
+                                with st.expander("📊 הצג פרטי חישוב"):
+                                    st.markdown("**בדיקות כלל שהוערכו:**")
+                                    for j, check in enumerate(test_result.get('rule_checks', [])):
+                                        st.markdown(f"**בדיקה {j+1}:** {check.get('violation_message', 'אין הודעה')}")
+                                        st.code(f"מזהה בדיקה: {check.get('id', 'לא זמין')}")
+                                        st.code(f"תנאי: {check['condition']}")
+                                        st.code(f"נוסחת סכום חסר תשלום: {check['underpaid_amount']}")
+                                        if j < len(test_result.get('check_results', [])):
+                                            check_result = test_result['check_results'][j]
+                                            st.info(f"תוצאה: תנאי = {check_result.get('condition_result', 'לא זמין')}, סכום = ₪{check_result['amount']:.2f}")
+                                        # Show calculation steps
+                                        if 'calculation_steps' in check_result:
+                                            for step in check_result['calculation_steps']:
+                                                if step['step'] == 'formula_substitution':
+                                                    st.code(f"עם ערכים: {step['formula']} = {step['result']}")
+                                st.markdown("**נתוני הקשר שהיו בשימוש:**")
+                                st.json(test_result.get('context_used', {}))
+                            else:
+                                st.error(f"❌ הבדיקה מצאה הפרות:")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.metric("סכום חסר תשלום", f"₪{test_result['total_underpaid_amount']:.2f}")
+                                with col2:
+                                    st.metric("סכום קנס", f"₪{test_result['penalty_amount']:.2f}")
+                                st.markdown("### 🔍 ניתוח הפרה מפורט")
+                                # Show each check calculation
+                                for j, check in enumerate(test_result.get('rule_checks', [])):
+                                    st.markdown(f"#### בדיקה {j+1}: {check.get('violation_message', 'אין הודעה')}")
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.markdown("**נוסחה:**")
+                                        st.code(f"מזהה בדיקה: {check.get('id', 'לא זמין')}")
+                                        st.code(f"תנאי: {check['condition']}")
+                                        st.code(f"סכום חסר תשלום: {check['underpaid_amount']}")
+                                    with col2:
+                                        if j < len(test_result.get('check_results', [])):
+                                            check_result = test_result['check_results'][j]
+                                            st.markdown("**תוצאה:**")
+                                            condition_met = check_result.get('condition_result', False)
+                                            if condition_met:
+                                                st.success("✅ תנאי: נכון")
+                                            else:
+                                                st.info("ℹ️ תנאי: לא נכון")
+                                            amount = check_result['amount']
+                                            if amount > 0:
+                                                st.error(f"💰 חסר תשלום: ₪{amount:.2f}")
+                                            else:
+                                                st.success(f"💰 סכום: ₪{amount:.2f}")
+                                    # Show calculation steps
+                                    if j < len(test_result.get('check_results', [])):
+                                        check_result = test_result['check_results'][j]
+                                        if 'calculation_steps' in check_result:
+                                            st.markdown("**שלבי חישוב:**")
+                                            for step in check_result['calculation_steps']:
+                                                if step['step'] == 'condition_evaluation':
+                                                    st.info(f"🔍 {step['description']}")
+                                                elif step['step'] == 'amount_calculation':
+                                                    st.success(f"💰 {step['description']}")
+                                                elif step['step'] == 'formula_substitution':
+                                                    st.code(f"עם ערכים: {step['formula']} = {step['result']}")
+                                        # Show any errors
+                                        if check_result.get('evaluation_error'):
+                                            st.error(f"⚠️ שגיאה: {check_result['evaluation_error']}")
+                                        # Check for missing fields (from engine results)
+                                        if 'missing_fields' in check_result and check_result['missing_fields']:
+                                            st.warning("⚠️ **שדות חסרים בנתוני בדיקה:**")
+                                            for field in check_result['missing_fields']:
+                                                st.markdown(f"• `{field}` - לא נמצא בנתוני בדיקה")
+                                    st.markdown("---")
+                                # Show penalty calculation
+                                st.markdown("### 💸 חישוב קנס")
+                                for penalty_line in test_result.get('rule_penalty', []):
+                                    st.code(penalty_line)
+                                penalty_calc = test_result.get('penalty_calculation', {})
+                                # Show penalty calculation steps
+                                if 'calculation_steps' in penalty_calc:
+                                    st.markdown("**שלבי חישוב קנס:**")
+                                    for step in penalty_calc['calculation_steps']:
+                                        st.markdown(f"**{step['variable']}:**")
+                                        st.code(f"נוסחה: {step['formula']}")
+                                        st.code(f"עם ערכים: {step['substituted_formula']}")
+                                        st.code(f"תוצאה: {step['result']}")
+                                # Show final amounts
+                                for key, value in penalty_calc.items():
+                                    if isinstance(value, (int, float)) and key in ['total_underpaid_amount', 'penalty_amount']:
+                                        st.markdown(f"• **{key.replace('_', ' ').title()}:** ₪{value:.2f}")
+                                # Show context data
+                                st.markdown("### 📊 נתוני בדיקה שהיו בשימוש")
+                                st.json(test_result.get('context_used', {}))
+                                # Show violations summary
+                                st.markdown("### ⚠️ הפרות שנמצאו")
+                                for violation in test_result["violations"]:
+                                    st.markdown(f"• **{violation['message']}:** ₪{violation['amount']:.2f}")
+                
+                with col2:
+                    if st.form_submit_button("❌ סגור בדיקה"):
+                        st.session_state[f'testing_rule_{selected_rule_heb}_heb'] = False
+                        st.rerun()
+            except (IndexError, KeyError) as e:
+                st.error(f"❌ שגיאה בגישה לנתוני כלל: {e}")
+                st.session_state[f'testing_rule_{selected_rule_heb}_heb'] = False
+                st.rerun()
+    else:
+        st.info("לא נמצאו כללים. הוסף כלל חדש למטה.")
+    
+    # Add new rule section
+    st.subheader("➕ הוסף כלל חדש")
+    
+    # Form for rule creation with integrated check/penalty management
+    with st.form("new_rule_form_heb"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            rule_id_heb = st.text_input("מזהה כלל*", help="מזהה ייחודי", key="rule_id_heb")
+            name_heb = st.text_input("שם כלל*", help="שם קריא לבני אדם", key="name_heb")
+            law_reference_heb = st.text_input("הפניה לחוק*", help="למשל: סעיף 16A", key="law_reference_heb")
+            description_heb = st.text_area("תיאור*", help="מה הכלל בודק", height=80, key="description_heb")
+        
+        with col2:
+            effective_from_heb = st.date_input("תקף מתאריך*", key="effective_from_heb")
+            effective_to_heb = st.text_input("תקף עד", help="YYYY-MM-DD או השאר ריק", key="effective_to_heb")
+            
+            st.markdown("**פונקציות זמינות:**")
+            st.code("min(), max(), abs(), round()")
+            
+            st.markdown("**משתנים זמינים:**")
+            st.code("""
+payslip.*, attendance.*, contract.*
+employee_id, month, hourly_rate, 
+overtime_hours, total_hours, etc.
+            """)
+    
+        # Check Management within form
+        st.markdown("**בדיקות כלל:**")
+        
+        # Display current checks
+        if st.session_state.new_rule_checks_heb:
+            st.markdown("**בדיקות נוכחיות:**")
+            for i, check in enumerate(st.session_state.new_rule_checks_heb):
+                with st.expander(f"בדיקה {i+1}: {check.get('violation_message', 'אין הודעה')}"):
+                    st.code(f"מזהה בדיקה: {check.get('id', 'לא זמין')}")
+                    st.code(f"תנאי: {check['condition']}")
+                    st.code(f"סכום חסר תשלום: {check['underpaid_amount']}")
+                    # Note: Remove functionality moved to form submit buttons
+        
+        # Add new check inputs
+        st.markdown("**הוסף בדיקה חדשה:**")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            new_check_id_heb = st.text_input("מזהה בדיקה", key="new_check_id_heb", help="מזהה ייחודי לבדיקה זו", placeholder="first_2h")
+            new_condition_heb = st.text_input("תנאי", key="new_condition_heb", help="למשל: attendance.overtime_hours > 0", placeholder="attendance.overtime_hours > 0")
+            new_underpaid_amount_heb = st.text_input("נוסחת סכום חסר תשלום", key="new_underpaid_amount_heb", help="למשל: (contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)", placeholder="(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)")
+        with col2:
+            new_violation_message_heb = st.text_input("הודעת הפרה", key="new_violation_message_heb", help="למשל: הפרת תעריף שעות נוספות", placeholder="הפרת תעריף שעות נוספות")
+        
+        # Penalty Management within form
+        st.markdown("**חישוב קנס:**")
+        
+        # Display current penalties
+        if st.session_state.new_rule_penalties_heb:
+            st.markdown("**שורות קנס נוכחיות:**")
+            for i, penalty in enumerate(st.session_state.new_rule_penalties_heb):
+                st.code(f"{i+1}. {penalty}")
+        
+        # Add new penalty line input
+        st.markdown("**הוסף שורת קנס חדשה:**")
+        new_penalty_line_heb = st.text_input("נוסחת קנס", key="new_penalty_line_heb", help="למשל: total_underpaid_amount = check_results[0]", placeholder="total_underpaid_amount = check_results[0] , penalty_amount= total_underpaid_amount * 5" )
+        
+        # Action buttons
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            add_check_btn_heb = st.form_submit_button("➕ הוסף בדיקה")
+        with col2:
+            add_penalty_btn_heb = st.form_submit_button("➕ הוסף קנס")
+        with col3:
+            clear_all_btn_heb = st.form_submit_button("🗑️ נקה הכל")
+        with col4:
+            submit_rule_btn_heb = st.form_submit_button("✅ צור כלל", type="primary")
+        
+        # Handle form submissions
+        if add_check_btn_heb:
+            if new_check_id_heb and new_condition_heb and new_underpaid_amount_heb and new_violation_message_heb:
+                st.session_state.new_rule_checks_heb.append({
+                    "id": new_check_id_heb,
+                    "condition": new_condition_heb,
+                    "underpaid_amount": new_underpaid_amount_heb,
+                    "violation_message": new_violation_message_heb
+                })
+                st.success("✅ בדיקה נוספה בהצלחה!")
+                st.rerun()
+            else:
+                st.error("אנא מלא את כל השדות לבדיקה")
+        
+        if add_penalty_btn_heb:
+            if new_penalty_line_heb:
+                st.session_state.new_rule_penalties_heb.append(new_penalty_line_heb)
+                st.success("✅ שורת קנס נוספה בהצלחה!")
+                st.rerun()
+            else:
+                st.error("אנא הכנס נוסחת קנס")
+        
+        if clear_all_btn_heb:
+            st.session_state.new_rule_checks_heb = []
+            st.session_state.new_rule_penalties_heb = []
+            st.success("✅ כל הבדיקות והקנסות נוקו!")
+            st.rerun()
+        
+        if submit_rule_btn_heb:
+            if not all([rule_id_heb, name_heb, law_reference_heb, description_heb]):
+                st.error("❌ אנא מלא את כל השדות הנדרשים")
+            else:
+                try:
+                    # Check if rule ID already exists
+                    existing_ids = [r['rule_id'] for r in rules_data['rules']]
+                    if rule_id_heb in existing_ids:
+                        st.error(f"❌ מזהה כלל '{rule_id_heb}' כבר קיים. אנא בחר מזהה אחר.")
+                    else:
+                        # Use session state lists
+                        checks_json_heb = st.session_state.new_rule_checks_heb
+                        penalty_json_heb = st.session_state.new_rule_penalties_heb
+                        
+                        # Validate checks structure
+                        validation_passed = True
+                        if not checks_json_heb:
+                            st.error("❌ אנא הוסף לפחות בדיקה אחת")
+                            validation_passed = False
+                        if not penalty_json_heb:
+                            st.error("❌ אנא הוסף לפחות שורת קנס אחת")
+                            validation_passed = False
+                        
+                        for i, check in enumerate(checks_json_heb):
+                            required_fields = ['id', 'condition', 'underpaid_amount', 'violation_message']
+                            missing_fields = [f for f in required_fields if f not in check]
+                            if missing_fields:
+                                st.error(f"❌ בדיקה {i+1} חסרים שדות נדרשים: {missing_fields}")
+                                validation_passed = False
+                        
+                        if not validation_passed:
+                            st.stop()
+                        
+                        # Create new rule
+                        new_rule = {
+                            "rule_id": rule_id_heb,
+                            "name": name_heb,
+                            "law_reference": law_reference_heb,
+                            "description": description_heb,
+                            "effective_from": effective_from_heb.strftime('%Y-%m-%d'),
+                            "effective_to": effective_to_heb if effective_to_heb else None,
+                            "checks": checks_json_heb,
+                            "penalty": penalty_json_heb,
+                            "created_date": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                            "updated_date": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+                        }
+                        
+                        # Add to rules data
+                        rules_data['rules'].append(new_rule)
+                        
+                        # Save to file
+                        if save_rules_data(rules_data):
+                            st.success(f"✅ כלל '{rule_id_heb}' נוסף בהצלחה!")
+                            st.balloons()
+                            
+                            # Clear the session state lists
+                            st.session_state.new_rule_checks_heb = []
+                            st.session_state.new_rule_penalties_heb = []
+                            
+                            # Show the new rule
+                            with st.expander("📋 הצג כלל שנוסף", expanded=True):
+                                st.json(new_rule)
+                            
+                            # Auto-refresh to show the new rule
+                            st.info("💡 הדף יתרענן אוטומטית כדי להציג את הכלל החדש שלך ברשימה למעלה.")
+                            st.rerun()
+                        else:
+                            st.error("❌ נכשל בשמירת הכלל לקובץ")
+                        
+                except Exception as e:
+                    st.error(f"❌ שגיאה ביצירת כלל: {e}")
+    
+    # Rule validation helper
+    st.markdown("---")
+    st.subheader("🔍 עוזר אימות כללים")
+    
+    with st.expander("📚 מדריך כתיבת כללים"):
+        st.markdown("""
+        ### משתנים זמינים בתנאים ובחישובים:
+        
+        **נתוני תלוש:**
+        - `payslip.base_salary` - משכורת בסיס חודשית
+        - `payslip.overtime_rate` - תעריף שעות נוספות ששולם
+        - `payslip.overtime_pay` - תשלום שעות נוספות כולל
+        - `payslip.total_pay` - תשלום כולל
+        
+        **נתוני נוכחות:**
+        - `attendance.regular_hours` - שעות עבודה רגילות
+        - `attendance.overtime_hours` - שעות נוספות
+        - `attendance.total_hours` - סה\"כ שעות
+        
+        **נתוני חוזה:**
+        - `contract.hourly_rate` - תעריף שעתי לפי חוזה
+        - `contract.position` - תפקיד העובד
+        
+        **גישה ישירה:**
+        - ניתן לגשת לשדות ישירות: `overtime_hours`, `hourly_rate`, וכו'.
+        
+        ### פונקציות מתמטיות:
+        - `min(a, b)` - מינימום בין שני ערכים
+        - `max(a, b)` - מקסימום בין שני ערכים
+        - `abs(x)` - ערך מוחלט
+        - `round(x, n)` - עיגול ל-n מקומות עשרוניים
+        - `sum(list)` - סכום של רשימת ערכים
+        
+        ### דוגמאות לתנאים:
+        ```python
+        # בדיקה אם קיימות שעות נוספות
+        attendance.overtime_hours > 0
+        
+        # בדיקה אם תעריף שעתי נמוך משכר מינימום
+        contract.hourly_rate < 32.7
+        
+        # תנאי מורכב עם מספר קריטריונים
+        attendance.overtime_hours > 2 and payslip.overtime_rate < (contract.hourly_rate * 1.5)
+        ```
+        
+        ### דוגמאות לחישובי סכום חסר תשלום:
+        ```python
+        # חסר תשלום פשוט בגין שעות נוספות
+        (contract.hourly_rate * 1.25 - payslip.overtime_rate) * attendance.overtime_hours
+        
+        # חסר בגין שכר מינימום
+        (32.7 - contract.hourly_rate) * attendance.total_hours
+        
+        # חישוב מדורג של שעות נוספות
+        max(0, (contract.hourly_rate * 1.5 - payslip.overtime_rate) * max(attendance.overtime_hours - 2, 0))
+        ```
+        """)
+    
+    # Quick rule tester
+    with st.expander("🧪 בודק ביטויים של כללים מהיר"):
+        st.markdown("בדוק את הביטויים שלך לפני הוספה לכלל:")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            test_expr_heb = st.text_input("ביטוי לבדיקה:", 
+                                    value="contract.hourly_rate * 1.25", key="test_expr_heb")
+        with col2:
+            if st.button("🧪 בדוק ביטוי", key="test_expression_heb"):
+                try:
+                    # Create sample context
+                    sample_context = {
+        'payslip': {
+            'employee_id': 'EMP_001',
+            'month': '2024-07',
+            'base_salary': 4800.0,
+            'overtime_rate': 35.0,
+            'overtime_pay': 175.0,
+            'total_pay': 4975.0
+        },
+        'attendance': {
+            'employee_id': 'EMP_001',
+            'month': '2024-07',
+            'regular_hours': 160,
+            'overtime_hours': 5,
+            'total_hours': 165
+        },
+        'contract': {
+            'employee_id': 'EMP_001',
+            'hourly_rate': 30.0,
+            'position': 'Software Developer'
+        }
+    }
+                    
+                    from simpleeval import simple_eval
+                    allowed_functions = {"min": min, "max": max, "abs": abs, "round": round}
+                    result = simple_eval(test_expr_heb, names=sample_context, functions=allowed_functions)
+                    st.success(f"✅ תוצאה: {result}")
+                    
+                except Exception as e:
+                    st.error(f"❌ שגיאת ביטוי: {e}")
+    
+    # Formula explanation section
+    st.markdown("### 🧮 דפוסי נוסחאות נפוצים")
+    with st.expander("📚 הבנת חישובי חוקי עבודה"):
+        st.markdown("""
+        #### חישובי תעריף שעות נוספות:
+        
+        **125% לשעתיים ראשונות:**
+        ```python
+        required_rate = contract.hourly_rate * 1.25
+        underpaid_amount = (required_rate - payslip.overtime_rate) * min(attendance.overtime_hours, 2)
+        ```
+        
+        **150% מעבר לשעתיים:**
+        ```python
+        required_rate = contract.hourly_rate * 1.5
+        overtime_beyond_2h = max(attendance.overtime_hours - 2, 0)
+        underpaid_amount = (required_rate - payslip.overtime_rate) * overtime_beyond_2h
+        ```
+        
+        #### חישובי שכר מינימום:
+        ```python
+        minimum_wage = 32.7  # שכר מינימום ישראלי נוכחי
+        if contract.hourly_rate < minimum_wage:
+            underpaid_amount = (minimum_wage - contract.hourly_rate) * attendance.total_hours
+        ```
+        
+        #### חישובי קנסות:
+        ```python
+        # קנס בסיסי (5% מסכום חסר התשלום)
+        penalty_amount = total_underpaid_amount * 0.05
+        
+        # קנס פרוגרסיבי על פי חומרה
+        if total_underpaid_amount > 1000:
+            penalty_amount = total_underpaid_amount * 0.10
+        ```
+        
+        #### דוגמת חישוב:
+        **תרחיש:** עובד עבד 5 שעות נוספות, שולם ₪35/שעה, תעריף חוזה ₪30/שעה
+        
+        **שלב 1:** שעתיים ראשונות ב-125%
+        - תעריף נדרש: ₪30 × 1.25 = ₪37.50/שעה
+        - חסר תשלום: (₪37.50 - ₪35.00) × 2 = ₪5.00
+        
+        **שלב 2:** 3 שעות נותרות ב-150%
+        - תעריף נדרש: ₪30 × 1.50 = ₪45.00/שעה
+        - חסר תשלום: (₪45.00 - ₪35.00) × 3 = ₪30.00
+        
+        **סה\"כ חסר תשלום:** ₪5.00 + ₪30.00 = ₪35.00
+        **קנס (5%):** ₪35.00 × 0.05 = ₪1.75
+        **השפעה כוללת:** ₪36.75
+        """)
+    
+    # Sample context display
+    st.markdown("### 📋 נתוני הקשר לדוגמה")
     sample_context = {
         'payslip': {
             'employee_id': 'EMP_001',
