@@ -1,0 +1,81 @@
+        contract_data = ContractData(
+            employee_id=employee_id,
+            contract_date=contract_date,
+            salary=monthly_salary,
+            hourly_rate=hourly_rate,
+            working_hours_per_week=working_hours.get('weekly_hours', 0),
+            working_hours_per_month=working_hours.get('monthly_hours', 0),
+            overtime_rate_125=salary_terms.get('overtime_rate_125', Decimal('1.25')),
+            overtime_rate_150=salary_terms.get('overtime_rate_150', Decimal('1.50')),
+            vacation_days=leave_policies.get('vacation_days', 0),
+            sick_days=leave_policies.get('sick_days', 0),
+            maternity_leave_days=leave_policies.get('maternity_leave_days'),
+            paternity_leave_days=leave_policies.get('paternity_leave_days'),
+            termination_notice_days=termination_terms.get('notice_period_days', 0),
+            probation_period_days=termination_terms.get('probation_period_days'),
+            pension_contribution_rate=benefits.get('pension_contribution_rate', Decimal('0')),
+            study_fund_contribution_rate=benefits.get('study_fund_contribution_rate', Decimal('0')),
+        )
+        
+        time_patterns = {
+            'start_time':
+            'end_time'
+            'break_duration
+            'total_hours': 
+            'overtime_hours':
+            'regular_hours':
+        }
+
+        absence_patterns = {
+            'sick'
+            'vacation'
+            'personal
+            'absent'
+        }
+        # Create AttendanceData object
+        attendance_data = AttendanceData(
+            employee_id=employee_id,
+            date=attendance_date,
+            start_time=time_data.get('start_time'),
+            end_time=time_data.get('end_time'),
+            break_duration_minutes=time_data.get('break_duration'),
+            total_hours=total_hours,
+            regular_hours=regular_hours,
+            overtime_hours=overtime_hours,
+            shabbat_hours=special_hours.get('shabbat_hours', Decimal('0')),
+            holiday_hours=special_hours.get('holiday_hours', Decimal('0')),
+            absence_type=absence_type,
+            is_absent=is_absent,
+        )
+        
+  
+    VALID_FIELD_PATHS = {
+        'payslip': [
+            'base_salary', 'overtime_hours', 'overtime_rate', 'overtime_pay',
+            'overtime_125_hours', 'overtime_125_pay', 'overtime_150_hours', 'overtime_150_pay',
+            'overtime_175_hours', 'overtime_175_pay', 'overtime_200_hours', 'overtime_200_pay',
+            'travel_allowance', 'seniority_bonus', 'commission', 'bonus',
+            'gross_pay', 'net_pay', 'working_hours', 'working_days',
+            'pension_employer_contribution', 'study_fund_employer_contribution',
+            'pension_employee_deduction', 'study_fund_employee_deduction',
+            'period_start', 'period_end'
+        ],
+        'contract': [
+            'salary', 'hourly_rate', 'working_hours_per_week', 'working_hours_per_month',
+            'overtime_rate_125', 'overtime_rate_150', 'vacation_days', 'sick_days',
+            'maternity_leave_days', 'paternity_leave_days', 'termination_notice_days',
+            'probation_period_days', 'pension_contribution_rate', 'study_fund_contribution_rate',
+            'contract_date'
+        ],
+        'attendance': [
+            'total_hours', 'regular_hours', 'overtime_hours', 'shabbat_hours', 'holiday_hours',
+            'break_duration_minutes', 'start_time', 'end_time', 'date', 'is_absent', 'absence_type'
+        ],
+        'employee': [
+            'name', 'id_number', 'department', 'position', 'start_date', 'employment_type'
+        ]
+    }
+       
+       
+       payslip-start date, end date, name
+       contract - date

@@ -1,0 +1,74 @@
+{
+  "labor_law_constants": {
+    "minimum_wage_monthly": 5500,
+    "minimum_wage_hourly": 30.0,
+    "max_daily_hours": 12,
+    "max_weekly_hours": 47,
+    "max_monthly_hours": 186,
+    "min_rest_between_shifts": 11
+  },
+  "overtime_rates": {
+    "rate_125": 1.25,
+    "rate_150": 1.5,
+    "rate_175": 1.75,
+    "rate_200": 2.0
+  },
+  "penalty_rates": {
+    "minimum_wage_penalty_rate": 0.1,
+    "overtime_penalty_rate": 0.05,
+    "working_hours_penalty_rate": 0.02,
+    "pension_penalty_rate": 0.15,
+    "cross_document_penalty_rate": 0.08
+  },
+  "benefit_rates": {
+    "pension_employer_rate": 0.075,
+    "pension_employee_rate": 0.06,
+    "study_fund_employer_rate": 0.075,
+    "study_fund_employee_rate": 0.025,
+    "social_security_rate": 0.12,
+    "health_tax_rate": 0.031,
+    "unemployment_insurance_rate": 0.006
+  },
+  "salary_ceilings": {
+    "pension_salary_ceiling": 45210,
+    "social_security_ceiling": 45210
+  },
+  "severity_multipliers": {
+    "low": 0.5,
+    "medium": 1.0,
+    "high": 1.5,
+    "critical": 2.0
+  },
+  "field_penalty_multipliers": {
+    "base_salary": 2.0,
+    "overtime_hours": 1.5,
+    "working_hours": 1.5,
+    "pension_contribution": 1.2,
+    "vacation_days": 1.0,
+    "sick_days": 1.0
+  },
+  "base_penalties": {
+    "minimum_wage": 1000,
+    "overtime": 800,
+    "working_hours": 600,
+    "rest_periods": 500,
+    "vacation": 400,
+    "sick_leave": 400,
+    "pension": 700,
+    "social_benefits": 500,
+    "cross_document_inconsistency": 300
+  },
+  "base_back_pay": {
+    "default": 500
+  },
+  "back_pay_formulas": {
+    "minimum_wage": "${labor_law_constants.minimum_wage_monthly} - base_salary",
+    "overtime": "overtime_hours * contract_hourly_rate * ${overtime_rates.rate_125} - overtime_pay",
+    "pension": "base_salary * ${benefit_rates.pension_employer_rate} - pension_employer_contribution"
+  },
+  "penalty_formulas": {
+    "minimum_wage": "(${labor_law_constants.minimum_wage_monthly} - base_salary) * ${penalty_rates.minimum_wage_penalty_rate}",
+    "overtime": "(overtime_hours * contract_hourly_rate * ${overtime_rates.rate_125} - overtime_pay) * ${penalty_rates.overtime_penalty_rate}",
+    "working_hours": "max(0, total_attendance_hours - ${labor_law_constants.max_monthly_hours}) * ${penalty_rates.working_hours_penalty_rate} * 100"
+  }
+}

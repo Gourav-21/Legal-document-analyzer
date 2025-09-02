@@ -7,6 +7,7 @@ from typing import Literal, List, Dict, Optional
 from sqlalchemy.orm import Session
 from database import get_db, AnalysisHistory, User
 from auth import get_current_user
+import json
 
 router = APIRouter()
 doc_processor = DocumentProcessor()
@@ -61,11 +62,10 @@ async def process_documents(
 
 @router.post("/report")
 async def create_report(
-    payslip_text: Optional[str] = Body(None),
-    contract_text: Optional[str] = Body(None),
-    attendance_text: Optional[str] = Body(None),
+    payslip_text: List[dict] = Body(None),
+    contract_text: dict = Body(None),
+    attendance_text: List[dict] = Body(None),
     type: Optional[str] = Body(None),
-    context: Optional[str] = Body(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Dict:
@@ -76,41 +76,32 @@ async def create_report(
                 detail="At least one document text must be provided"
             )
 
+        # Parse input data into structured dictionaries
+        # payslip_data = json.loads(payslip_text) if payslip_text else []
+        # attendance_data = json.loads(attendance_text) if attendance_text else []
+        # contract_data = json.loads(contract_text) if contract_text else {}
 
-        result = await doc_processor.create_report(
-            payslip_text=payslip_text,
-            contract_text=contract_text,
-            attendance_text=attendance_text,
-            analysis_type=type,
-            context=context
+        # Call the updated rule engine function
+        result = await doc_processor.create_report_with_rule_engine(
+            payslip_data=payslip_text,
+            attendance_data=attendance_text,
+            contract_data=contract_text,
+            analysis_type=type
         )
 
-        # If result is a Pydantic model, convert to dict for FastAPI response validation
-        if hasattr(result, 'dict') and callable(result.dict):
-            result_dict = result.dict()
-        else:
-            result_dict = result
-
         # Save to AnalysisHistory
-        analysis_type_value = type if type else "report"
-        # Extract only the 'legal_analysis' part for storing
-        analysis_content_to_store = ""
-        if isinstance(result_dict, dict) and "legal_analysis" in result_dict:
-            analysis_content_to_store = result_dict["legal_analysis"]
-        elif isinstance(result_dict, str):  # Fallback if result is already just the analysis string
-            analysis_content_to_store = result_dict
-        # If result is a dict but doesn't have 'legal_analysis', it will store an empty string.
-        # Consider if error handling or logging is needed here if the structure is unexpected.
+        analysis_type_value = type if type else "rule_based"
+        analysis_content_to_store = result.get("legal_analysis", "")
 
         new_analysis = AnalysisHistory(
             analysis_type=analysis_type_value,
-            analysis_result=analysis_content_to_store,  # Store only the analysis string
+            analysis_result=analysis_content_to_store,
             user_id=current_user.id
         )
         db.add(new_analysis)
         db.commit()
 
-        return result_dict
+        return result
     except HTTPException as e:
         raise e
     except Exception as e:

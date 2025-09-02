@@ -1,0 +1,35 @@
+{
+  "payslip": [
+    {
+      "employee_id": "EMP_2024_001",
+      "month": "2024-07",
+      "base_salary": 4800.0,
+      "overtime_rate": 38.0,
+      "overtime_pay": 456.0,
+      "total_pay": 5256.0,
+      "deductions": 526.0,
+      "net_pay": 4730.0
+    }
+  ],
+  "attendance": [
+    {
+      "employee_id": "EMP_2024_001",
+      "month": "2024-07",
+      "regular_hours": 160,
+      "overtime_hours": 12,
+      "total_hours": 172,
+      "days_worked": 22,
+      "sick_days": 1,
+      "vacation_days": 0
+    }
+  ],
+  "contract": [
+    {
+      "employee_id": "EMP_2024_001",
+      "hourly_rate": 30.0,
+      "position": "Software Developer",
+      "contract_start": "2024-01-15",
+      "employment_type": "full_time"
+    }
+  ]
+}

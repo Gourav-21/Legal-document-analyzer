@@ -1,0 +1,58 @@
+{
+  "template_name": "israeli_labor_law_rules",
+  "description": "Collection of Israeli labor law rules",
+  "created_date": "2024-01-01",
+  "updated_date": "2025-08-27",
+  "rules": [
+    {
+      "rule_id": "overtime_payment",
+      "name": "Overtime Payment Compliance",
+      "law_reference": "Hours of Work and Rest Law, 1951 - Sections 16A & 16B",
+      "description": "Overtime must be paid correctly: first 2 hours at 125% and additional hours at 150% of the base hourly rate",
+      "effective_from": "2023-01-01",
+      "effective_to": null,
+      "checks": [
+        {
+          "id": "first_2h",
+          "condition": "attendance.overtime_hours > 0",
+          "underpaid_amount": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
+          "violation_message": "First 2 hours of overtime must be paid at 125% of base rate"
+        },
+        {
+          "id": "after_2h",
+          "condition": "attendance.overtime_hours > 2",
+          "underpaid_amount": "(contract.hourly_rate * 1.5 - payslip.overtime_rate) * max(attendance.overtime_hours - 2, 0)",
+          "violation_message": "Overtime beyond 2 hours must be paid at 150% of base rate"
+        }
+      ],
+      "penalty": [
+        "total_underpaid_amount = first_2h + after_2h",
+        "penalty_amount = total_underpaid_amount * 0.05"
+      ],
+      "created_date": "2024-01-01T00:00:00Z",
+      "updated_date": "2025-08-29T00:00:00Z"
+    },
+    {
+      "rule_id": "minimum_wage",
+      "name": "Minimum Wage",
+      "law_reference": "Section 1",
+      "description": "Base hourly rate must be >= 32.7 NIS",
+      "effective_from": "2024-01-01",
+      "effective_to": null,
+      "checks": [
+        {
+          "id": "min_wage_check",
+          "condition": "contract.hourly_rate < 32.7",
+          "underpaid_amount": "(32.7 - contract.hourly_rate) * attendance.total_hours",
+          "violation_message": "Hourly rate below minimum wage"
+        }
+      ],
+      "penalty": [
+        "total_underpaid_amount = check_results[0]",
+        "penalty_amount = total_underpaid_amount * 0.10"
+      ],
+      "created_date": "2024-01-01T00:00:00Z",
+      "updated_date": "2025-08-27T00:00:00Z"
+    }
+  ]
+}

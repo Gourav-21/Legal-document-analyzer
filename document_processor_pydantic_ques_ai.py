@@ -241,22 +241,22 @@ class DocumentProcessor:
         
         # Initialize PydanticAI model - use Google Gemini
         gemini_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
-        # openai_api_key = os.getenv("OPENAI_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
         # Use ModelSettings to set temperature to 0.0 (deterministic output)
         model_settings = ModelSettings(temperature=0.0)
-        # if openai_api_key:
-            # try:
-            #     import openai
-            #     openai.api_key = openai_api_key
-            #     self.model_type = "gpt-5"
-            #     self.model = "gpt-5"  # Use process_with_gpt5 for calls
-            # except ImportError:
-            #     print("⚠️ openai package not installed. GPT-5 support unavailable.")
-        if gemini_api_key:
-            # Create Google provider with API key
-            google_provider = GoogleProvider(api_key=gemini_api_key)
-            self.model = GoogleModel('gemini-2.5-pro', provider=google_provider, settings=model_settings)
-            self.model_type = "gemini"
+        if openai_api_key:
+            try:
+                import openai
+                openai.api_key = openai_api_key
+                self.model_type = "gpt-5"
+                self.model = "gpt-5"  # Use process_with_gpt5 for calls
+            except ImportError:
+                print("⚠️ openai package not installed. GPT-5 support unavailable.")
+        # elif gemini_api_key:
+        #     # Create Google provider with API key
+        #     google_provider = GoogleProvider(api_key=gemini_api_key)
+        #     self.model = GoogleModel('gemini-2.5-pro', provider=google_provider, settings=model_settings)
+        #     self.model_type = "gemini"
         else:
             raise Exception("GOOGLE_API_KEY or GOOGLE_CLOUD_VISION_API_KEY must be set in environment variables")
         # Initialize PydanticAI Agent
@@ -391,7 +391,13 @@ Always check and correct all calculations.
 """
         )
 
-       
+        # Initialize Evaluator-Optimizer system
+        try:
+            self.evaluator_optimizer = EvaluatorOptimizer()
+            print("✅ Evaluator-Optimizer system initialized successfully")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize Evaluator-Optimizer: {e}")
+            self.evaluator_optimizer = None
             
         # Initialize Rule Engine components
         try:
@@ -469,561 +475,127 @@ Always check and correct all calculations.
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error in review_analysis: {get_error_detail(e)}")
 
-    async def create_report_with_rule_engine(self, payslip_data: List[Dict], attendance_data: List[Dict] = None, 
-                                            contract_data: Dict = None, analysis_type: str = "rule_based") -> Dict:
-        """
-        Create legal analysis report using the rule engine for structured violation detection
+    # async def create_report_with_optimization(self, payslip_text: str = None, contract_text: str = None, 
+    #                       attendance_text: str = None, analysis_type: str = "combined", 
+    #                       context: str = None, use_optimizer: bool = True, target_score: float = 0.85) -> Dict:
+    #     """
+    #     Create legal analysis report with evaluator-optimizer workflow for enhanced accuracy
         
-        Args:
-            payslip_data: List of payslip data dictionaries
-            attendance_data: List of attendance data dictionaries
-            contract_data: Contract data dictionary
-            analysis_type: Type of analysis to perform
+    #     Args:
+    #         payslip_text: Payslip document text
+    #         contract_text: Contract document text  
+    #         attendance_text: Attendance document text
+    #         analysis_type: Type of analysis to perform
+    #         context: Additional context
+    #         use_optimizer: Whether to use the evaluator-optimizer workflow
+    #         target_score: Target quality score for optimization (0-1)
             
-        Returns:
-            Dictionary with rule-based analysis results
-        """
+    #     Returns:
+    #         Dictionary with optimized analysis and quality metrics
+    #     """
         
-        if not self.rule_evaluator or not self.penalty_calculator or not self.rules_data:
-            raise HTTPException(
-                status_code=500,
-                detail="Rule Engine not properly initialized"
-            )
+    #     # Step 1: Generate initial analysis and get all the processed data
+    #     print("🔄 Generating initial analysis...")
+    #     initial_result = await self.create_report(
+    #         payslip_text=payslip_text,
+    #         contract_text=contract_text,
+    #         attendance_text=attendance_text,
+    #         analysis_type=analysis_type,
+    #         context=context
+    #     )
         
-        try:
-            print("🔄 Running rule-based analysis...")
-            
-            # Validate and sanitize input data
-            if not payslip_data or not isinstance(payslip_data, list):
-                payslip_data = []
-            
-            if attendance_data is None or not isinstance(attendance_data, list):
-                attendance_data = []
-            
-            if contract_data is None or not isinstance(contract_data, dict):
-                contract_data = {}
-            
-            print(f"Processing {len(payslip_data)} payslips, {len(attendance_data)} attendance records")
-            
-            # Import required components
-            from engine.evaluator import RuleEvaluator
-            from engine.penalty_calculator import PenaltyCalculator
-            
-            # Define context builder function (creates nested structure expected by rules)
-            def build_context(payslip, attendance, contract):
-                # Calculate overtime rate from payslip data
-                overtime_rate = 0
-                if payslip.get('overtime_hours', 0) > 0 and payslip.get('overtime_pay', 0) > 0:
-                    overtime_rate = payslip.get('overtime_pay', 0) / payslip.get('overtime_hours', 1)
-                
-                context = {
-                    'employee_id': payslip.get('employee_id', ''),
-                    'month': payslip.get('month', ''),
-                    'name': payslip.get('name', ''),
-
-                    # Nested payslip object
-                    'payslip': {
-                        'base_salary': payslip.get('base_salary', 0),
-                        'overtime_hours': payslip.get('overtime_hours', 0),
-                        'overtime_pay': payslip.get('overtime_pay', 0),
-                        'overtime_rate': overtime_rate,
-                        'total_salary': payslip.get('total_salary', 0),
-                        'hours_worked': payslip.get('hours_worked', 0),
-                        'hourly_rate': payslip.get('hourly_rate', 0),
-                        'sick_days_taken': payslip.get('sick_days_taken', 0),
-                        'vacation_days_taken': payslip.get('vacation_days_taken', 0)
-                    },
-                    
-                    # Nested attendance object
-                    'attendance': {
-                        'days_worked': attendance.get('days_worked', 0),
-                        'regular_hours': attendance.get('regular_hours', 0),
-                        'overtime_hours': attendance.get('overtime_hours', 0),
-                        'total_hours': attendance.get('total_hours', 0),
-                        'sick_days': attendance.get('sick_days', 0),
-                        'vacation_days': attendance.get('vacation_days', 0)
-                    },
-                    
-                    # Nested contract object
-                    'contract': {
-                        'minimum_wage_monthly': contract.get('minimum_wage_monthly', 0),
-                        'minimum_wage_hourly': contract.get('minimum_wage_hourly', 0),
-                        'hourly_rate': contract.get('minimum_wage_hourly', 32.7),  # Use minimum wage as base
-                        'overtime_rate_125': contract.get('overtime_rate_125', 1.25),
-                        'overtime_rate_150': contract.get('overtime_rate_150', 1.50),
-                        'overtime_rate_175': contract.get('overtime_rate_175', 1.75),
-                        'overtime_rate_200': contract.get('overtime_rate_200', 2.00),
-                        'standard_hours_per_month': contract.get('standard_hours_per_month', 186),
-                        'standard_hours_per_day': contract.get('standard_hours_per_day', 8),
-                        'max_overtime_daily': contract.get('max_overtime_daily', 3),
-                        'vacation_days_per_year': contract.get('vacation_days_per_year', 14),
-                        'sick_days_per_year': contract.get('sick_days_per_year', 18)
-                    }
-                }
-                return context
-            
-            # Step 1: Evaluate rules against the provided data using improved logic
-            results = []
-            total_penalties = 0.0
-            
-            # Check if we have any data to process
-            if not payslip_data:
-                print("⚠️ No payslip data provided for analysis")
-                return {
-                    'legal_analysis': 'לא סופקו נתוני תלושי שכר לניתוח',
-                    'status': 'no_data',
-                    'analysis_type': analysis_type,
-                    'violations_count': 0,
-                    'inconclusive_count': 0,
-                    'compliant_count': 0,
-                    'total_penalties': 0.0,
-                    'total_underpaid': 0.0,
-                    'total_combined': 0.0,
-                    'violations_by_law': {},
-                    'inconclusive_results': [],
-                    'all_results': [],
-                    'rule_engine_used': True
-                }
-            
-            # Process each payslip with month-based attendance matching
-            for payslip in payslip_data:
-                emp_id = payslip.get('employee_id', 'unknown')
-                month = payslip.get('month', 'unknown')
-                print(f"Evaluating payslip for employee {emp_id}, month {month}...")
-                
-                # Aggregate all attendance records for this month (improved logic)
-                attendance_records = []
-                if attendance_data:
-                    attendance_records = [a for a in attendance_data if a.get('month') == month]
-                
-                if attendance_records:
-                    # Sum numeric fields, keep others from the first record
-                    aggregated = dict(attendance_records[0])
-                    for key in aggregated:
-                        if isinstance(aggregated[key], (int, float)):
-                            aggregated[key] = sum(a.get(key, 0) for a in attendance_records 
-                                                if isinstance(a.get(key, 0), (int, float)))
-                    attendance = aggregated
-                else:
-                    attendance = {}
-                
-                # Get contract data (use first contract if multiple)
-                contract = contract_data if contract_data else {}
-                
-                # Build context for rule evaluation
-                context = build_context(payslip, attendance, contract)
-                
-                # Evaluate each rule
-                for rule in self.rules_data['rules']:
-                    # Check if rule is applicable for this month
-                    if not RuleEvaluator.is_rule_applicable(rule, month):
-                        continue
-                    
-                    # Evaluate rule checks
-                    check_results, named_results = RuleEvaluator.evaluate_checks(rule['checks'], context)
-                    
-                    # Calculate penalty
-                    penalty = PenaltyCalculator.calculate_penalty(rule['penalty'], check_results, named_results)
-                    
-                    # Find violations (checks with amount > 0)
-                    violations = [cr for cr in check_results if cr['amount'] > 0]
-                    
-                    # Check if any checks have missing fields
-                    missing_fields_results = [cr for cr in check_results if cr.get('missing_fields', [])]
-                    has_missing_fields = len(missing_fields_results) > 0
-                    
-                    # Collect all missing fields for this rule
-                    all_missing_fields = set()
-                    for cr in check_results:
-                        if cr.get('missing_fields'):
-                            all_missing_fields.update(cr['missing_fields'])
-                    
-                    # Include rule in results if there are violations OR missing fields
-                    if violations or has_missing_fields:
-                        result = {
-                            'rule_id': rule['rule_id'],
-                            'employee_id': emp_id,
-                            'period': month,
-                            'violations': violations,
-                            'total_underpaid_amount': penalty.get('total_underpaid_amount', 0.0),
-                            'penalty_amount': penalty['penalty_amount'],
-                            'check_results': check_results,
-                            'has_missing_fields': has_missing_fields,
-                            'missing_fields': sorted(list(all_missing_fields)),
-                            'rule_name': rule.get('name', rule['rule_id']),
-                            'law_reference': rule.get('law_reference', ''),
-                            'description': rule.get('description', ''),
-                            # Add rule metadata for UI display
-                            'rule_checks': rule.get('checks', []),
-                            'rule_penalty': rule.get('penalty', []),
-                            'context_used': context,
-                            'penalty_calculation': penalty,
-                            'named_results': named_results
-                        }
-                        
-                        # Add compliance status
-                        if has_missing_fields:
-                            result['compliance_status'] = 'inconclusive'
-                        elif len(violations) == 0:
-                            result['compliance_status'] = 'compliant'
-                        else:
-                            result['compliance_status'] = 'violation'
-                        
-                        results.append(result)
-                        total_penalties += penalty['penalty_amount']
-            
-            # Step 2: Generate report based on analysis_type
-            violation_results = [r for r in results if r['compliance_status'] == 'violation']
-            inconclusive_results = [r for r in results if r['compliance_status'] == 'inconclusive']
-            compliant_results = [r for r in results if r['compliance_status'] == 'compliant']
-            
-             # Calculate combined total (underpaid + penalties)
-            total_underpaid = sum(result.get('total_underpaid_amount', 0) for result in violation_results)
-            total_combined = total_underpaid + total_penalties
-            
-            # Handle different analysis types
-            if analysis_type in ["violations_list", "easy", "table", "violation_count_table"]:
-                # Use non-AI formatting for these types
-                legal_analysis = self._format_rule_engine_results_non_ai(
-                    violation_results, inconclusive_results, compliant_results, 
-                    total_penalties, analysis_type
-                )
-            else:
-                # Use AI formatting for complex types like "report", "combined", etc.
-                legal_analysis = await self._format_rule_engine_results_with_ai(
-                    violation_results, inconclusive_results, compliant_results, 
-                    total_penalties, analysis_type, total_combined
-                )
-            
-            # Group results by law reference for return data
-            violations_by_law = {}
-            if violation_results:
-                for result in violation_results:
-                    law_ref = result.get('law_reference', 'לא מוגדר')
-                    if law_ref not in violations_by_law:
-                        violations_by_law[law_ref] = []
-                    violations_by_law[law_ref].append(result)
-            
-           
-            
-            return {
-                'legal_analysis': legal_analysis,
-                'analysis_type': analysis_type,
-                'violations_count': len(violation_results),
-                'inconclusive_count': len(inconclusive_results),
-                'compliant_count': len(compliant_results),
-                'total_penalties': total_penalties,
-                'total_underpaid': total_underpaid,
-                'total_combined': total_combined,
-                'violations_by_law': violations_by_law,
-                'inconclusive_results': inconclusive_results,
-            }
-            
-        except Exception as e:
-            print(f"⚠️ Rule engine analysis failed: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Error in rule engine analysis: {get_error_detail(e)}"
-            )
-
-    def _format_rule_engine_results_non_ai(self, violation_results: List[Dict], 
-                                           inconclusive_results: List[Dict], 
-                                           compliant_results: List[Dict], 
-                                           total_penalties: float, 
-                                           analysis_type: str) -> str:
-        """Format rule engine results without AI for specific analysis types"""
+    #     initial_analysis = initial_result.legal_analysis
+    #     formatted_laws = initial_result.formatted_laws
+    #     formatted_judgements = initial_result.formatted_judgements
+    #     documents = initial_result.documents
         
-        if analysis_type == "violations_list":
-            if not violation_results:
-                return "לא נמצאו הפרות"
+    #     # If optimizer is disabled or not available, return initial result
+    #     if not use_optimizer or not self.evaluator_optimizer:
+    #         print("⚠️ Optimizer disabled or unavailable, returning initial analysis")
+    #         return {
+    #             'legal_analysis': initial_analysis,
+    #             'status': 'success_no_optimization',
+    #             'analysis_type': analysis_type,
+    #             'quality_score': None,
+    #             'improvements_made': [],
+    #             'optimization_used': False
+    #         }
+        
+    #     # Step 2: Prepare source documents for evaluation using data from create_report
+    #     source_documents = {}
+    #     if documents:
+    #         for key, value in documents.items():
+    #             if key == 'payslip':
+    #                 source_documents['payslip_text'] = value
+    #             elif key == 'contract':
+    #                 source_documents['contract_text'] = value
+    #             elif key == 'attendance report':
+    #                 source_documents['attendance_text'] = value
+    #             else:
+    #                 source_documents[key] = value
+    #     else:
+    #         # Fallback to creating from parameters
+    #         if payslip_text:
+    #             source_documents['payslip_text'] = payslip_text
+    #         if contract_text:
+    #             source_documents['contract_text'] = contract_text
+    #         if attendance_text:
+    #             source_documents['attendance_text'] = attendance_text
+        
+    #     # Step 3: Use the formatted laws and judgements from create_report (no need to retrieve again!)
+    #     if not formatted_laws or not formatted_judgements:
+    #         print("⚠️ No formatted laws/judgements from create_report, using fallback")
+    #         formatted_laws = formatted_laws or "No laws retrieved for evaluation"
+    #         formatted_judgements = formatted_judgements or "No judgements retrieved for evaluation"
+    #     else:
+    #         print("✅ Using formatted laws and judgements from create_report")
+        
+    #     # Step 4: Run evaluator-optimizer workflow
+    #     try:
+    #         print("🚀 Running evaluator-optimizer workflow...")
             
-            violations_text = "## הפרות שזוהו\n\n"
-            for result in violation_results[:4]:  # Limit to 4 violations
-                rule_name = result.get('rule_name', 'הפרה לא מזוהה')
-                law_ref = result.get('law_reference', 'לא מוגדר')
-                violations_text += f"- **{rule_name}** - {law_ref}\n"
+    #         optimized_analysis, final_evaluation, changes = await self.evaluator_optimizer.evaluate_and_optimize(
+    #             analysis=initial_analysis,
+    #             source_documents=source_documents,
+    #             laws=formatted_laws,
+    #             judgements=formatted_judgements,
+    #             context=context or "",
+    #             target_score=target_score
+    #         )
             
-            return violations_text
-        
-        elif analysis_type == "easy":
-            if not violation_results:
-                return "לא נמצאו הפרות"
+    #         print(f"✅ Optimization complete! Final score: {final_evaluation.overall_score:.2f}")
             
-            easy_text = "# 📢 סיכום ההפרות\n\n"
-            total_amount = 0
+    #         return {
+    #             'legal_analysis': optimized_analysis,
+    #             'status': 'success_optimized',
+    #             'analysis_type': analysis_type,
+    #             'quality_score': final_evaluation.overall_score,
+    #             'detailed_scores': {
+    #                 'factual_accuracy': final_evaluation.factual_accuracy,
+    #                 'legal_compliance': final_evaluation.legal_compliance,
+    #                 'calculation_accuracy': final_evaluation.calculation_accuracy,
+    #                 'completeness': final_evaluation.completeness,
+    #                 'citation_quality': final_evaluation.citation_quality,
+    #                 'clarity': final_evaluation.clarity
+    #             },
+    #             'improvements_made': changes,
+    #             'remaining_suggestions': final_evaluation.improvement_suggestions,
+    #             'critical_issues': final_evaluation.critical_issues,
+    #             'optimization_used': True
+    #         }
             
-            for result in violation_results:
-                emp_id = result['employee_id']
-                period = result['period']
-                rule_name = result.get('rule_name', 'הפרה')
-                # Combine underpaid amount and penalty
-                underpaid = result.get('total_underpaid_amount', 0)
-                penalty = result.get('penalty_amount', 0)
-                amount = underpaid + penalty
-                
-                if amount > 0:
-                    easy_text += f"- ❌ **{rule_name}** ב{period} - **{amount:,.0f} ₪**\n"
-                    total_amount += amount
-            
-            easy_text += f"\n## 💰 סה\"כ: {total_amount:,.0f} ₪\n\n"
-            easy_text += "## 📝 מה לעשות עכשיו\n\n"
-            easy_text += "1. פנה/י למעסיק עם דרישה לתשלום הסכומים\n"
-            easy_text += "2. אם אין מענה – מומלץ לפנות לייעוץ משפטי\n"
-            
-            return easy_text
-        
-        elif analysis_type == "table":
-            if not violation_results:
-                return "לא נמצאו הפרות לארגון בטבלה"
-            
-            table_text = "# טבלת הפרות\n\n"
-            # Group by employee and period
-            grouped = {}
-            for result in violation_results:
-                key = f"{result['employee_id']} - {result['period']}"
-                if key not in grouped:
-                    grouped[key] = []
-                grouped[key].append(result)
-            
-            for group_key, group_results in grouped.items():
-                table_text += f"## עובד {group_key}\n\n"
-                for i, result in enumerate(group_results, 1):
-                    rule_name = result.get('rule_name', 'הפרה')
-                    # Combine underpaid amount and penalty
-                    underpaid = result.get('total_underpaid_amount', 0)
-                    penalty = result.get('penalty_amount', 0)
-                    amount = underpaid + penalty
-                    hebrew_letter = chr(ord('א') + i - 1)  # Convert to Hebrew letters
-                    table_text += f"{hebrew_letter}. סכום של **{amount:.2f} ש\"ח** עבור **{rule_name}**\n"
-                table_text += "\n"
-            
-            return table_text
-        
-        elif analysis_type == "violation_count_table":
-            if not violation_results:
-                return "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
-            
-            # Create summary table
-            table_text = "# טבלת סיכום מקיפה\n\n"
-            table_text += "| תלוש/מסמך | סוג הפרה | תקופה | סכום (₪) | מספר הפרות |\n"
-            table_text += "---|---|---|---|---\n"
-            
-            total_amount = 0
-            violation_counts = {}
-            
-            for result in violation_results:
-                emp_id = result['employee_id']
-                period = result['period']
-                rule_name = result.get('rule_name', 'הפרה')
-                # Combine underpaid amount and penalty
-                underpaid = result.get('total_underpaid_amount', 0)
-                penalty = result.get('penalty_amount', 0)
-                amount = underpaid + penalty
-                
-                table_text += f"עובד {emp_id} | {rule_name} | {period} | {amount:,.2f} | 1\n"
-                total_amount += amount
-                
-                # Count violations by type
-                if rule_name not in violation_counts:
-                    violation_counts[rule_name] = {'count': 0, 'amount': 0}
-                violation_counts[rule_name]['count'] += 1
-                violation_counts[rule_name]['amount'] += amount
-            
-            table_text += f"---|---|---|---|---\n"
-            table_text += f"סה\"כ | {len(violation_results)} הפרות | - | {total_amount:,.2f} | {len(violation_results)}\n\n"
-            
-            # Add breakdown by violation type
-            table_text += "פירוט לפי סוג הפרה:\n"
-            for vtype, vdata in violation_counts.items():
-                table_text += f"• {vtype}: {vdata['count']} הפרות, סה\"כ {vdata['amount']:,.2f} ₪\n"
-            
-            return table_text
-        
-        else:
-            # Default rule-based report format
-            return self._format_default_rule_engine_report(
-                violation_results, inconclusive_results, compliant_results, total_penalties
-            )
-    
-    def _format_default_rule_engine_report(self, violation_results: List[Dict], 
-                                          inconclusive_results: List[Dict], 
-                                          compliant_results: List[Dict], 
-                                          total_penalties: float) -> str:
-        """Format default rule engine report"""
-        report_sections = []
-        
-        # Summary section
-        report_sections.append("# דוח ניתוח משפטי - מנוע חוקים")
-        report_sections.append(f"## סיכום כללי")
-        report_sections.append(f"- **סה\"כ הפרות שזוהו:** {len(violation_results)}")
-        report_sections.append(f"- **בדיקות לא חד-משמעיות (חסרים נתונים):** {len(inconclusive_results)}")
-        report_sections.append(f"- **בדיקות תקינות:** {len(compliant_results)}")
-        report_sections.append(f"- **סה\"כ קנסות משוערים:** {total_penalties:,.2f} ₪")
-        
-        # Violations section
-        if violation_results:
-            report_sections.append(f"\n## הפרות שזוהו")
-            
-            for result in violation_results:
-                report_sections.append(f"\n### {result.get('rule_name', 'הפרה לא מזוהה')}")
-                report_sections.append(f"**עובד:** {result['employee_id']}")
-                report_sections.append(f"**תקופה:** {result['period']}")
-                report_sections.append(f"**תיאור:** {result.get('description', 'לא זמין')}")
-                if result.get('law_reference'):
-                    report_sections.append(f"**בסיס חוקי:** {result['law_reference']}")
-                
-                # Show violation details
-                if result['violations']:
-                    report_sections.append("**פרטי ההפרות:**")
-                    for violation in result['violations']:
-                        if violation['amount'] > 0:
-                            report_sections.append(f"  - {violation.get('description', 'הפרה')}: {violation['amount']:,.2f} ₪")
-                
-                if result['total_underpaid_amount'] > 0:
-                    report_sections.append(f"**סכום חסר בתשלום:** {result['total_underpaid_amount']:,.2f} ₪")
-                
-                if result['penalty_amount'] > 0:
-                    report_sections.append(f"**קנס משוער:** {result['penalty_amount']:,.2f} ₪")
-        
-        # Missing data section
-        if inconclusive_results:
-            report_sections.append(f"\n## בדיקות לא חד-משמעיות (חסרים נתונים)")
-            report_sections.append("הבדיקות הבאות לא ניתן היה להשלים בשל חוסר במידע:")
-            
-            for result in inconclusive_results:
-                report_sections.append(f"\n### {result.get('rule_name', 'בדיקה לא מזוהה')}")
-                report_sections.append(f"**עובד:** {result['employee_id']}")
-                report_sections.append(f"**תקופה:** {result['period']}")
-                if result['missing_fields']:
-                    report_sections.append(f"**שדות חסרים:** {', '.join(result['missing_fields'])}")
-        
-        # Compliant section (optional, brief)
-        if compliant_results:
-            report_sections.append(f"\n## בדיקות תקינות")
-            report_sections.append(f"נמצאו {len(compliant_results)} בדיקות שעברו בהצלחה ללא הפרות.")
-        
-        # No issues found
-        if not violation_results and not inconclusive_results:
-            report_sections.append("\n## לא זוהו הפרות")
-            report_sections.append("על פי הבדיקה שבוצעה באמצעות מנוע החוקים, לא זוהו הפרות של חוקי העבודה במסמכים שנבדקו.")
-        
-        # Recommendations section
-        if violation_results:
-            report_sections.append("\n## המלצות לתיקון")
-            recommendations = []
-            
-            for result in violation_results:
-                if result['total_underpaid_amount'] > 0:
-                    recommendations.append(f"להשלים תשלום חסר של {result['total_underpaid_amount']:,.2f} ₪ לעובד {result['employee_id']} עבור תקופה {result['period']}")
-            
-            for i, recommendation in enumerate(recommendations, 1):
-                report_sections.append(f"{i}. {recommendation}")
-        
-        return "\n".join(report_sections)
-    
-    async def _format_rule_engine_results_with_ai(self, violation_results: List[Dict], 
-                                                 inconclusive_results: List[Dict], 
-                                                 compliant_results: List[Dict], 
-                                                 total_penalties: float, 
-                                                 analysis_type: str,
-                                                 total_combined: float) -> str:
-        """Format rule engine results using AI for complex analysis types"""
-        
-        # Prepare data summary for AI
-        data_summary = {
-            'violations': violation_results,
-            'inconclusive': inconclusive_results,
-            'compliant': compliant_results,
-            'total_penalties': total_penalties,
-            'violation_count': len(violation_results),
-            'inconclusive_count': len(inconclusive_results),
-            'compliant_count': len(compliant_results)
-        }
-        
-        # Build prompt based on analysis type
-        if analysis_type == "report":
-            instructions = self._get_report_instructions()
-        elif analysis_type == "combined":
-            instructions = self._get_combined_instructions()
-        elif analysis_type == "claim":
-            instructions = self._get_claim_instructions()
-        elif analysis_type == "warning_letter":
-            instructions = self._get_warning_letter_instructions()
-        else:
-            # Default to report format
-            instructions = self._get_report_instructions()
-        
-        prompt = f"""
-נתוני הפרות ממנוע החוקים:
-
-סיכום כמותי:
-- סה"כ הפרות: {len(violation_results)}
-- בדיקות לא חד-משמעיות: {len(inconclusive_results)}
-- בדיקות תקינות: {len(compliant_results)}
-- סה"כ קנסות: {total_penalties:,.2f} ₪
-- סה"כ (חסר + קנס): {total_combined:,.2f} ₪
-פירוט הפרות:
-{self._format_violations_for_ai_prompt(violation_results)}
-
-בדיקות לא חד-משמעיות:
-{self._format_inconclusive_for_ai_prompt(inconclusive_results)}
-
----
-
-{instructions}
-"""
-        
-        try:
-            result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
-            return result.output if hasattr(result, 'output') else str(result)
-        except Exception as e:
-            # Fallback to non-AI formatting if AI fails
-            print(f"AI formatting failed, using fallback: {e}")
-            return self._format_default_rule_engine_report(
-                violation_results, inconclusive_results, compliant_results, total_penalties
-            )
-    
-    def _format_violations_for_ai_prompt(self, violation_results: List[Dict]) -> str:
-        """Format violations data for AI prompt"""
-        if not violation_results:
-            return "לא נמצאו הפרות"
-        
-        formatted = []
-        for result in violation_results:
-            underpaid = result.get('total_underpaid_amount', 0)
-            penalty = result.get('penalty_amount', 0)
-            total_combined = underpaid + penalty
-            formatted.append(f"""
-הפרה: {result.get('rule_name', 'לא מוגדר')}
-עובד: {result['employee_id']}
-תקופה: {result['period']}
-בסיס חוקי: {result.get('law_reference', 'לא מוגדר')}
-תיאור: {result.get('description', 'לא זמין')}
-סכום חסר: {underpaid:,.2f} ₪
-קנס: {penalty:,.2f} ₪
-סה"כ (חסר + קנס): {total_combined:,.2f} ₪
-פרטי הפרות: {', '.join([f"{v.get('description', 'הפרה')}: {v['amount']:,.2f} ₪" for v in result.get('violations', []) if v['amount'] > 0])}
-""")
-        
-        return "\n".join(formatted)
-    
-    def _format_inconclusive_for_ai_prompt(self, inconclusive_results: List[Dict]) -> str:
-        """Format inconclusive results for AI prompt"""
-        if not inconclusive_results:
-            return "אין בדיקות לא חד-משמעיות"
-        
-        formatted = []
-        for result in inconclusive_results:
-            formatted.append(f"""
-בדיקה: {result.get('rule_name', 'לא מוגדר')}
-עובד: {result['employee_id']}
-תקופה: {result['period']}
-שדות חסרים: {', '.join(result.get('missing_fields', []))}
-""")
-        
-        return "\n".join(formatted)
-
-        
+    #     except Exception as e:
+    #         print(f"⚠️ Evaluator-optimizer failed: {e}")
+    #         # Fallback to initial analysis if optimization fails
+    #         return {
+    #             'legal_analysis': initial_analysis,
+    #             'status': 'success_optimization_failed',
+    #             'analysis_type': analysis_type,
+    #             'quality_score': None,
+    #             'improvements_made': [],
+    #             'optimization_used': False,
+    #             'optimization_error': str(e)
+    #         } 
 
     async def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, str]:
         """Process uploaded documents and extract text concurrently"""
@@ -2486,6 +2058,63 @@ Formatting requirements:
             # "relevant_laws": result.relevant_laws,
             # "relevant_judgements": result.relevant_judgements
         }
+    
+    def create_report_with_optimization_sync(self, payslip_text: str = None, contract_text: str = None, 
+                          attendance_text: str = None, type: str = "report", 
+                          context: str = None, use_optimizer: bool = True, target_score: float = 0.85) -> Dict:
+        """Synchronous wrapper for create_report_with_optimization method"""
+        try:
+            # Try to get existing event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is already running, create a new thread
+                import concurrent.futures
+                
+                def run_in_thread():
+                    # Create new event loop for this thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(self.create_report_with_optimization(
+                            payslip_text=payslip_text,
+                            contract_text=contract_text, 
+                            attendance_text=attendance_text,
+                            analysis_type=type,  # Map 'type' to 'analysis_type'
+                            context=context,
+                            use_optimizer=use_optimizer,
+                            target_score=target_score
+                        ))
+                    finally:
+                        new_loop.close()
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_in_thread)
+                    return future.result()
+            else:
+                # No running loop, use asyncio.run
+                return asyncio.run(self.create_report_with_optimization(
+                    payslip_text=payslip_text,
+                    contract_text=contract_text, 
+                    attendance_text=attendance_text,
+                    analysis_type=type,  # Map 'type' to 'analysis_type'
+                    context=context,
+                    use_optimizer=use_optimizer,
+                    target_score=target_score
+                ))
+        except RuntimeError as e:
+            if "no current event loop" in str(e).lower() or "event loop is closed" in str(e).lower():
+                # Create new event loop
+                return asyncio.run(self.create_report_with_optimization(
+                    payslip_text=payslip_text,
+                    contract_text=contract_text, 
+                    attendance_text=attendance_text,
+                    analysis_type=type,  # Map 'type' to 'analysis_type'
+                    context=context,
+                    use_optimizer=use_optimizer,
+                    target_score=target_score
+                ))
+            else:
+                raise e
     
     def summarise_sync(self, ai_content_text: str) -> str:
         """Synchronous wrapper for summarise method with improved event loop handling"""

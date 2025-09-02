@@ -1,0 +1,28 @@
+{
+  "payslip": [
+    {
+      "employee_id": "EMP_COMPLIANT",
+      "month": "2024-07",
+      "base_salary": 5616.0,
+      "overtime_rate": 52.7,
+      "overtime_pay": 614.25,
+      "total_pay": 6230.25
+    }
+  ],
+  "attendance": [
+    {
+      "employee_id": "EMP_COMPLIANT",
+      "month": "2024-07",
+      "regular_hours": 160,
+      "overtime_hours": 12,
+      "total_hours": 172
+    }
+  ],
+  "contract": [
+    {
+      "employee_id": "EMP_COMPLIANT",
+      "hourly_rate": 35.1,
+      "position": "Senior Developer"
+    }
+  ]
+}

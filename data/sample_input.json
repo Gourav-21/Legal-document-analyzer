@@ -1,0 +1,34 @@
+{
+  "payslip": [
+    {
+      "employee_id": "123",
+      "month": "2024-07",
+      "overtime_rate": 40.0
+    },
+    {
+      "employee_id": "123",
+      "month": "2024-08",
+      "overtime_rate": 41.0
+    }
+  ],
+  "attendance": [
+    {
+      "employee_id": "123",
+      "month": "2024-07",
+      "overtime_hours": 3,
+      "total_hours": 180
+    },
+    {
+      "employee_id": "123",
+      "month": "2024-08",
+      "overtime_hours": 1,
+      "total_hours": 160
+    }
+  ],
+  "contract": [
+    {
+      "employee_id": "123",
+      "hourly_rate": 32.0
+    }
+  ]
+}

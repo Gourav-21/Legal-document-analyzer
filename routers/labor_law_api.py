@@ -2,9 +2,66 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Optional
 from rag_storage import RAGLegalStorage
 from pydantic import BaseModel
+import json
+import os
+import uuid
 
 router = APIRouter()
 rag_storage = RAGLegalStorage()
+
+# --- CRUD for labor_law_rules.json ---
+RULES_PATH = os.path.join(os.path.dirname(__file__), '../rules/labor_law_rules.json')
+
+def load_rules():
+    with open(RULES_PATH, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return data
+
+def save_rules(data):
+    with open(RULES_PATH, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+@router.get('/labor-law-rules', response_model=dict)
+def get_all_rules():
+    return load_rules()
+
+@router.get('/labor-law-rules/{rule_id}', response_model=dict)
+def get_rule(rule_id: str):
+    data = load_rules()
+    rule = next((r for r in data['rules'] if r['rule_id'] == rule_id), None)
+    if not rule:
+        raise HTTPException(status_code=404, detail='Rule not found')
+    return rule
+
+@router.post('/labor-law-rules', response_model=dict)
+def create_rule(rule: dict):
+    data = load_rules()
+    # Generate a random unique rule_id
+    rule_id = str(uuid.uuid4())
+    rule['rule_id'] = rule_id
+    data['rules'].append(rule)
+    save_rules(data)
+    return rule
+
+@router.put('/labor-law-rules/{rule_id}', response_model=dict)
+def update_rule(rule_id: str, rule: dict):
+    data = load_rules()
+    for i, r in enumerate(data['rules']):
+        if r['rule_id'] == rule_id:
+            data['rules'][i] = rule
+            save_rules(data)
+            return rule
+    raise HTTPException(status_code=404, detail='Rule not found')
+
+@router.delete('/labor-law-rules/{rule_id}', response_model=dict)
+def delete_rule(rule_id: str):
+    data = load_rules()
+    for i, r in enumerate(data['rules']):
+        if r['rule_id'] == rule_id:
+            removed = data['rules'].pop(i)
+            save_rules(data)
+            return removed
+    raise HTTPException(status_code=404, detail='Rule not found')
 
 class LawText(BaseModel):
     text: str

@@ -1,0 +1,50 @@
+{
+  "payslip": [
+    {
+      "employee_id": "123",
+      "pay_period_start": "2024-07-01",
+      "pay_period_end": "2024-07-31",
+      "pay_date": "2024-08-05",
+      "overtime_rate": 40.0,
+      "base_salary": 5760.0,
+      "overtime_pay": 120.0,
+      "total_pay": 5880.0
+    },
+    {
+      "employee_id": "123", 
+      "pay_period_start": "2024-08-01",
+      "pay_period_end": "2024-08-31",
+      "pay_date": "2024-09-05",
+      "overtime_rate": 41.0,
+      "base_salary": 5120.0,
+      "overtime_pay": 41.0,
+      "total_pay": 5161.0
+    }
+  ],
+  "attendance": [
+    {
+      "employee_id": "123",
+      "pay_period_start": "2024-07-01",
+      "pay_period_end": "2024-07-31", 
+      "overtime_hours": 3,
+      "total_hours": 180,
+      "regular_hours": 177
+    },
+    {
+      "employee_id": "123",
+      "pay_period_start": "2024-08-01", 
+      "pay_period_end": "2024-08-31",
+      "overtime_hours": 1,
+      "total_hours": 160,
+      "regular_hours": 159
+    }
+  ],
+  "contract": [
+    {
+      "employee_id": "123",
+      "hourly_rate": 32.0,
+      "contract_start": "2024-01-01",
+      "position": "Software Developer"
+    }
+  ]
+}
