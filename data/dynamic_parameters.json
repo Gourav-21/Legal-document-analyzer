@@ -1,0 +1,120 @@
+{
+  "payslip": [
+    {
+      "param": "employee_id",
+      "label": "Employee ID"
+    },
+    {
+      "param": "month",
+      "label": "Month (YYYY-MM)"
+    },
+    {
+      "param": "base_salary",
+      "label": "Base Salary (₪)"
+    },
+    {
+      "param": "overtime_hours",
+      "label": "Overtime Hours"
+    },
+    {
+      "param": "overtime_pay",
+      "label": "Total Overtime Pay (₪)"
+    },
+    {
+      "param": "overtime_rate",
+      "label": "Overtime Rate Paid (₪/hour)"
+    },
+    {
+      "param": "total_salary",
+      "label": "Total Salary (₪)"
+    },
+    {
+      "param": "hours_worked",
+      "label": "Hours Worked"
+    },
+    {
+      "param": "hourly_rate",
+      "label": "Hourly Rate (₪)"
+    }
+  ],
+  "attendance": [
+    {
+      "param": "employee_id",
+      "label": "Employee ID"
+    },
+    {
+      "param": "month",
+      "label": "Month (YYYY-MM)"
+    },
+    {
+      "param": "days_worked",
+      "label": "Days Worked"
+    },
+    {
+      "param": "regular_hours",
+      "label": "Regular Hours"
+    },
+    {
+      "param": "overtime_hours",
+      "label": "Overtime Hours"
+    },
+    {
+      "param": "total_hours",
+      "label": "Total Hours"
+    },
+    {
+      "param": "sick_days",
+      "label": "Sick Days"
+    },
+    {
+      "param": "vacation_days",
+      "label": "Vacation Days"
+    }
+  ],
+  "contract": [
+    {
+      "param": "employee_id",
+      "label": "Employee ID"
+    },
+    {
+      "param": "minimum_wage_monthly",
+      "label": "Minimum Wage Monthly"
+    },
+    {
+      "param": "minimum_wage_hourly",
+      "label": "Minimum Wage Hourly"
+    },
+    {
+      "param": "hourly_rate",
+      "label": "Hourly Rate (₪)"
+    },
+    {
+      "param": "overtime_rate_125",
+      "label": "Overtime Rate 125%"
+    },
+    {
+      "param": "overtime_rate_150",
+      "label": "Overtime Rate 150%"
+    },
+    {
+      "param": "standard_hours_per_month",
+      "label": "Standard Hours Per Month"
+    },
+    {
+      "param": "standard_hours_per_day",
+      "label": "Standard Hours Per Day"
+    },
+    {
+      "param": "vacation_days_per_year",
+      "label": "Vacation Days Per Year"
+    },
+    {
+      "param": "sick_days_per_year",
+      "label": "Sick Days Per Year"
+    },
+    {
+      "param": "pension_contribution",
+      "label": "Pension Contribution (%)"
+    }
+  ]
+}

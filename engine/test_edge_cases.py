@@ -1,7 +1,7 @@
 import pytest
 from loader import RuleLoader
 from evaluator import RuleEvaluator
-from penalty_calculator import PenaltyCalculator
+# Removed PenaltyCalculator import - penalties no longer used
 import datetime
 
 
@@ -33,13 +33,13 @@ EDGE_CASE_RULES = {
             "checks": [
                 {
                     "condition": "attendance.total_hours > 0",
-                    "underpaid_amount": "payslip.base_salary / max(attendance.total_hours, 1) - contract.hourly_rate",
+                    "amount_owed": "payslip.base_salary / max(attendance.total_hours, 1) - contract.hourly_rate",
                     "violation_message": "Effective hourly rate calculation error"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = max(0, check_results[0])",
-                "penalty_amount = total_underpaid_amount * 0.10"
+                "total_amount_owed = max(0, check_results[0])",
+                "penalty_amount = total_amount_owed * 0.10"
             ]
         },
         {
@@ -52,13 +52,13 @@ EDGE_CASE_RULES = {
             "checks": [
                 {
                     "condition": "payslip.overtime_pay < 0 or attendance.overtime_hours < 0",
-                    "underpaid_amount": "abs(min(payslip.overtime_pay, 0)) + abs(min(attendance.overtime_hours, 0)) * contract.hourly_rate",
+                    "amount_owed": "abs(min(payslip.overtime_pay, 0)) + abs(min(attendance.overtime_hours, 0)) * contract.hourly_rate",
                     "violation_message": "Negative overtime values detected"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.25"
+                "total_amount_owed = check_results[0]",
+                "penalty_amount = total_amount_owed * 0.25"
             ]
         },
         {
@@ -71,13 +71,13 @@ EDGE_CASE_RULES = {
             "checks": [
                 {
                     "condition": "contract.hourly_rate < 35.0",
-                    "underpaid_amount": "(35.0 - contract.hourly_rate) * attendance.total_hours",
+                    "amount_owed": "(35.0 - contract.hourly_rate) * attendance.total_hours",
                     "violation_message": "Special July 2024 minimum wage requirement"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.05"
+                "total_amount_owed = check_results[0]",
+                "penalty_amount = total_amount_owed * 0.05"
             ]
         },
         {
@@ -90,13 +90,13 @@ EDGE_CASE_RULES = {
             "checks": [
                 {
                     "condition": "payslip.get('bonus', 0) > 0",
-                    "underpaid_amount": "payslip.get('bonus', 0) * 0.1 - payslip.get('bonus_tax', 0)",
+                    "amount_owed": "payslip.get('bonus', 0) * 0.1 - payslip.get('bonus_tax', 0)",
                     "violation_message": "Bonus tax not properly calculated"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = max(0, check_results[0])",
-                "penalty_amount = total_underpaid_amount * 0.15"
+                "total_amount_owed = max(0, check_results[0])",
+                "penalty_amount = total_amount_owed * 0.15"
             ]
         },
         {
@@ -109,13 +109,13 @@ EDGE_CASE_RULES = {
             "checks": [
                 {
                     "condition": "(attendance.overtime_hours > 10 and contract.hourly_rate < 40) or (attendance.night_hours > 20 and payslip.get('night_premium', 0) == 0)",
-                    "underpaid_amount": "max((attendance.overtime_hours - 10) * contract.hourly_rate * 0.5, attendance.night_hours * contract.hourly_rate * 0.25)",
+                    "amount_owed": "max((attendance.overtime_hours - 10) * contract.hourly_rate * 0.5, attendance.night_hours * contract.hourly_rate * 0.25)",
                     "violation_message": "Complex overtime or night shift violation"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.20"
+                "total_amount_owed = check_results[0]",
+                "penalty_amount = total_amount_owed * 0.20"
             ]
         }
     ]
@@ -149,11 +149,9 @@ class TestEdgeCases:
         
         # Should not crash due to division by zero
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Should handle gracefully
         assert isinstance(check_results[0]["amount"], (int, float))
-        assert isinstance(penalty["penalty_amount"], (int, float))
 
     def test_negative_values_handling(self):
         """Test handling of negative overtime values"""
@@ -180,13 +178,11 @@ class TestEdgeCases:
         rule = EDGE_CASE_RULES["rules"][1]  # negative_values_handling
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Should detect negative values and calculate violation
         assert check_results[0]["amount"] > 0
         # Expected: abs(-100) + abs(-5) * 30 = 100 + 150 = 250
         assert check_results[0]["amount"] == pytest.approx(250.0)
-        assert penalty["penalty_amount"] == pytest.approx(62.5)  # 250 * 0.25
 
     def test_boundary_date_rule_applicable(self):
         """Test rule that's only applicable for July 2024"""
@@ -215,11 +211,9 @@ class TestEdgeCases:
         assert RuleEvaluator.is_rule_applicable(rule, "2024-07")
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Should have violation: (35.0 - 32.0) * 160 = 480
         assert check_results[0]["amount"] == pytest.approx(480.0)
-        assert penalty["penalty_amount"] == pytest.approx(24.0)  # 480 * 0.05
 
     def test_boundary_date_rule_not_applicable(self):
         """Test same rule for August 2024 (outside boundary)"""
@@ -272,12 +266,10 @@ class TestEdgeCases:
         rule = EDGE_CASE_RULES["rules"][3]  # missing_field_handling
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Should handle missing bonus_tax field gracefully
         # Expected: 1000 * 0.1 - 0 = 100
         assert check_results[0]["amount"] == pytest.approx(100.0)
-        assert penalty["penalty_amount"] == pytest.approx(15.0)  # 100 * 0.15
 
     def test_complex_conditional_logic_first_condition(self):
         """Test complex conditional - first condition triggers"""
@@ -304,12 +296,10 @@ class TestEdgeCases:
         rule = EDGE_CASE_RULES["rules"][4]  # complex_conditional
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # First condition: overtime_hours > 10 and hourly_rate < 40
         # Expected: max((15-10) * 35 * 0.5, 5 * 35 * 0.25) = max(87.5, 43.75) = 87.5
         assert check_results[0]["amount"] == pytest.approx(87.5)
-        assert penalty["penalty_amount"] == pytest.approx(17.5)  # 87.5 * 0.20
 
     def test_complex_conditional_logic_second_condition(self):
         """Test complex conditional - second condition triggers"""
@@ -337,12 +327,10 @@ class TestEdgeCases:
         rule = EDGE_CASE_RULES["rules"][4]  # complex_conditional
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Second condition: night_hours > 20 and night_premium == 0
         # Expected: max(5 * 45 * 0.5, 25 * 45 * 0.25) = max(112.5, 281.25) = 281.25
         assert check_results[0]["amount"] == pytest.approx(281.25)
-        assert penalty["penalty_amount"] == pytest.approx(56.25)  # 281.25 * 0.20
 
     def test_invalid_expression_handling(self):
         """Test handling of invalid expressions in rules"""
@@ -356,13 +344,13 @@ class TestEdgeCases:
             "checks": [
                 {
                     "condition": "undefined_variable > 0",  # This will fail
-                    "underpaid_amount": "another_undefined_var * 100",  # This will also fail
+                    "amount_owed": "another_undefined_var * 100",  # This will also fail
                     "violation_message": "Invalid expression test"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.10"
+                "total_amount_owed = check_results[0]",
+                "penalty_amount = total_amount_owed * 0.10"
             ]
         }
         
@@ -374,7 +362,6 @@ class TestEdgeCases:
         
         # Should handle invalid expressions gracefully without crashing
         check_results, named_results = RuleEvaluator.evaluate_checks(invalid_rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(invalid_rule["penalty"], check_results, named_results)
         
         # Should return safe defaults
         assert check_results[0]["amount"] == 0.0
@@ -382,7 +369,6 @@ class TestEdgeCases:
         assert "missing fields" in check_results[0]["message"]
         assert "undefined_variable" in check_results[0]["message"]
         assert "another_undefined_var" in check_results[0]["message"]
-        assert penalty["penalty_amount"] == 0.0
 
     def test_extreme_values(self):
         """Test handling of extreme numerical values"""
@@ -410,11 +396,9 @@ class TestEdgeCases:
         
         # Should handle extreme values without overflow/underflow issues
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Should complete without errors
         assert isinstance(check_results[0]["amount"], (int, float))
-        assert isinstance(penalty["penalty_amount"], (int, float))
         assert not (check_results[0]["amount"] == float('inf') or check_results[0]["amount"] == float('-inf'))
 
 

@@ -2,24 +2,29 @@ import os
 import json
 from loader import RuleLoader
 from evaluator import RuleEvaluator
-from penalty_calculator import PenaltyCalculator
+ # Removed PenaltyCalculator import
 
 RULES_PATH = os.path.join(os.path.dirname(__file__), '../rules/labor_law_rules.json')
 INPUT_PATH = os.path.join(os.path.dirname(__file__), '../data/sample_input.json')
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), '../output/report_2024_07.json')
 
+from dynamic_params import DynamicParams
+
 def build_context(payslip, attendance, contract):
+    # Use dynamic param config to build context
+    params = DynamicParams.load()
     context = {
-        'employee_id': payslip['employee_id'],
-        'month': payslip['month'],
         'payslip': payslip,
         'attendance': attendance,
         'contract': contract
     }
-    # Flatten top-level fields for direct access in expressions
-    context.update(payslip)
-    context.update(attendance)
-    context.update(contract)
+    # Flatten all dynamic params for direct access
+    for section in ['payslip', 'attendance', 'contract']:
+        for p in params[section]:
+            context[p['param']] = (locals()[section] or {}).get(p['param'], None)
+    # Add employee_id and month for legacy compatibility
+    context['employee_id'] = context.get('employee_id', payslip.get('employee_id', None))
+    context['month'] = context.get('month', payslip.get('month', None))
     return context
 
 def main():
@@ -46,19 +51,21 @@ def main():
             if not RuleEvaluator.is_rule_applicable(rule, month):
                 continue
             check_results, named_results = RuleEvaluator.evaluate_checks(rule['checks'], context)
-            penalty = PenaltyCalculator.calculate_penalty(rule['penalty'], check_results, named_results)
-            violations = [cr for cr in check_results if cr['amount'] > 0]
-            
+            violations = [cr for cr in check_results if cr['amount'] >= 0]
+
+            # Dynamically calculate total_amount_owed
+            total_amount_owed = sum(cr['amount'] for cr in check_results if cr['amount'] >= 0)
+
             # Check if any checks have missing fields
             missing_fields_results = [cr for cr in check_results if cr.get('missing_fields', [])]
             has_missing_fields = len(missing_fields_results) > 0
-            
+
             # Collect all missing fields for this rule
             all_missing_fields = set()
             for cr in check_results:
                 if cr.get('missing_fields'):
                     all_missing_fields.update(cr['missing_fields'])
-            
+
             # Include rule in results if there are violations OR missing fields
             if violations or has_missing_fields:
                 result = {
@@ -66,8 +73,7 @@ def main():
                     'employee_id': emp_id,
                     'period': month,
                     'violations': violations,
-                    'total_underpaid_amount': penalty.get('total_underpaid_amount', 0.0),
-                    'penalty_amount': penalty['penalty_amount'],
+                    'total_amount_owed': total_amount_owed,
                     'check_results': check_results,  # Include all check results
                     'has_missing_fields': has_missing_fields,
                     'missing_fields': sorted(list(all_missing_fields))  # Add missing fields to result

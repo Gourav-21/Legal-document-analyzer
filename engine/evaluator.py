@@ -103,8 +103,8 @@ class RuleEvaluator:
         
         for idx, check in enumerate(checks):
             # Check for missing variables in condition
-            condition_missing = RuleEvaluator.find_missing_variables(check["condition"], context)
-            amount_missing = RuleEvaluator.find_missing_variables(check["underpaid_amount"], context)
+            condition_missing = RuleEvaluator.find_missing_variables(check.get("condition", ""), context)
+            amount_missing = RuleEvaluator.find_missing_variables(check.get("amount_owed", ""), context)
             all_missing = sorted(set(condition_missing + amount_missing))
             
             # Initialize result structure
@@ -123,9 +123,9 @@ class RuleEvaluator:
             
             # Try to evaluate condition
             try:
-                cond = simple_eval(check["condition"], names=context, functions=allowed_functions)
+                cond = simple_eval(check.get("condition", "False"), names=context, functions=allowed_functions)
             except Exception as e:
-                print(f"[Eval Error] Condition: {check['condition']}: {e}")
+                print(f"[Eval Error] Condition: {check.get('condition', 'N/A')}: {e}")
                 cond = False
                 result["condition_error"] = str(e)
                 # If we couldn't evaluate due to missing vars, update the message
@@ -135,12 +135,12 @@ class RuleEvaluator:
             # If condition is true, try to evaluate amount
             if cond:
                 try:
-                    amount = simple_eval(check["underpaid_amount"], names=context, functions=allowed_functions)
+                    amount = simple_eval(check.get("amount_owed", "0"), names=context, functions=allowed_functions)
                     result["amount"] = amount
                     if not all_missing:  # Only set violation message if no missing fields
-                        result["message"] = check["violation_message"]
+                        result["message"] = check.get("violation_message", "Violation detected")
                 except Exception as e:
-                    print(f"[Eval Error] Underpaid Amount: {check['underpaid_amount']}: {e}")
+                    print(f"[Eval Error] Underpaid Amount: {check.get('amount_owed', 'N/A')}: {e}")
                     result["amount"] = 0.0
                     result["amount_error"] = str(e)
                     if not all_missing:  # Only update if we haven't already identified missing vars

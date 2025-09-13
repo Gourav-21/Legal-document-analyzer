@@ -1,34 +1,41 @@
 {
   "payslip": [
     {
-      "employee_id": "123",
-      "month": "2024-07",
-      "overtime_rate": 40.0
-    },
-    {
-      "employee_id": "123",
-      "month": "2024-08",
-      "overtime_rate": 41.0
+      "employee_id": "TEST_001",
+      "month": "2024-01",
+      "base_salary": 5000,
+      "overtime_hours": 10,
+      "overtime_pay": 300,
+      "overtime_rate": 30,
+      "total_salary": 5300,
+      "hours_worked": 196,
+      "hourly_rate": 26.88
     }
   ],
   "attendance": [
     {
-      "employee_id": "123",
-      "month": "2024-07",
-      "overtime_hours": 3,
-      "total_hours": 180
-    },
-    {
-      "employee_id": "123",
-      "month": "2024-08",
-      "overtime_hours": 1,
-      "total_hours": 160
+      "employee_id": "TEST_001",
+      "month": "2024-01",
+      "days_worked": 22,
+      "regular_hours": 186,
+      "overtime_hours": 10,
+      "total_hours": 196,
+      "sick_days": 0,
+      "vacation_days": 0
     }
   ],
   "contract": [
     {
-      "employee_id": "123",
-      "hourly_rate": 32.0
+      "employee_id": "TEST_001",
+      "minimum_wage_monthly": 5300,
+      "minimum_wage_hourly": 29.12,
+      "hourly_rate": 26.88,
+      "overtime_rate_125": 1.25,
+      "overtime_rate_150": 1.5,
+      "standard_hours_per_month": 186,
+      "standard_hours_per_day": 8,
+      "vacation_days_per_year": 14,
+      "sick_days_per_year": 18
     }
   ]
 }

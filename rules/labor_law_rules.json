@@ -25,10 +25,6 @@
           "violation_message": "Overtime beyond 2 hours must be paid at 150% of base rate"
         }
       ],
-      "penalty": [
-        "total_underpaid_amount = first_2h + after_2h",
-        "penalty_amount = total_underpaid_amount * 0.05"
-      ],
       "created_date": "2024-01-01T00:00:00Z",
       "updated_date": "2025-08-29T00:00:00Z"
     },
@@ -46,10 +42,6 @@
           "underpaid_amount": "(32.7 - contract.hourly_rate) * attendance.total_hours",
           "violation_message": "Hourly rate below minimum wage"
         }
-      ],
-      "penalty": [
-        "total_underpaid_amount = check_results[0]",
-        "penalty_amount = total_underpaid_amount * 0.10"
       ],
       "created_date": "2024-01-01T00:00:00Z",
       "updated_date": "2025-08-27T00:00:00Z"

@@ -1,22 +1,25 @@
 import pytest
 from loader import RuleLoader
 from evaluator import RuleEvaluator
-from penalty_calculator import PenaltyCalculator
+ # Removed PenaltyCalculator import
 import datetime
 
 
 # Helper to build context (copied from main.py)
+from dynamic_params import DynamicParams
+
 def build_context(payslip, attendance, contract):
+    params = DynamicParams.load()
     context = {
-        'employee_id': payslip['employee_id'],
-        'month': payslip['month'],
         'payslip': payslip,
         'attendance': attendance,
         'contract': contract
     }
-    context.update(payslip)
-    context.update(attendance)
-    context.update(contract)
+    for section in ['payslip', 'attendance', 'contract']:
+        for p in params[section]:
+            context[p['param']] = (locals()[section] or {}).get(p['param'], None)
+    context['employee_id'] = context.get('employee_id', payslip.get('employee_id', None))
+    context['month'] = context.get('month', payslip.get('month', None))
     return context
 
 # Sample rules (minimal, for test isolation)
@@ -32,14 +35,11 @@ RULES = {
             "checks": [
                 {
                     "condition": "attendance.overtime_hours > 0",
-                    "underpaid_amount": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
+                    "amount_owed": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
                     "violation_message": "First 2 hours of overtime must be paid at 125%"
                 }
             ],
-            "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.05"
-            ],
+            # Removed penalty field
             "created_date": "2024-01-01T00:00:00Z",
             "updated_date": "2025-08-27T00:00:00Z"
         },
@@ -53,14 +53,11 @@ RULES = {
             "checks": [
                 {
                     "condition": "contract.hourly_rate < 32.7",
-                    "underpaid_amount": "(32.7 - contract.hourly_rate) * attendance.total_hours",
+                    "amount_owed": "(32.7 - contract.hourly_rate) * attendance.total_hours",
                     "violation_message": "Hourly rate below minimum wage"
                 }
             ],
-            "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.10"
-            ],
+            # Removed penalty field
             "created_date": "2024-01-01T00:00:00Z",
             "updated_date": "2025-08-27T00:00:00Z"
         }
@@ -78,10 +75,9 @@ def test_no_violations(payslip, attendance, contract):
     for rule in RULES["rules"]:
         assert RuleEvaluator.is_rule_applicable(rule, payslip["month"])
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         assert all(cr["amount"] == 0 for cr in check_results)
-        assert penalty["total_underpaid_amount"] == 0
-        assert penalty["penalty_amount"] == 0
+        total_amount_owed = sum(cr["amount"] for cr in check_results if cr["amount"] > 0)
+        assert total_amount_owed == 0
 
 # Test 2: Only first check triggered
 @pytest.mark.parametrize("payslip,attendance,contract", [
@@ -94,10 +90,9 @@ def test_first_check_triggered(payslip, attendance, contract):
     rule = RULES["rules"][0]  # overtime_first_2h
     assert RuleEvaluator.is_rule_applicable(rule, payslip["month"])
     check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-    penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
+    total_amount_owed = sum(cr["amount"] for cr in check_results if cr["amount"] > 0)
     assert check_results[0]["amount"] > 0
-    assert penalty["total_underpaid_amount"] == check_results[0]["amount"]
-    assert penalty["penalty_amount"] == pytest.approx(penalty["total_underpaid_amount"] * 0.05)
+    assert total_amount_owed == check_results[0]["amount"]
 
 # Test 3: Minimum wage violation
 @pytest.mark.parametrize("payslip,attendance,contract", [
@@ -110,8 +105,6 @@ def test_minimum_wage_violation(payslip, attendance, contract):
     rule = RULES["rules"][1]  # minimum_wage
     assert RuleEvaluator.is_rule_applicable(rule, payslip["month"])
     check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-    penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
     assert check_results[0]["amount"] == pytest.approx((32.7 - 30.0) * 180)
-    assert penalty["penalty_amount"] == pytest.approx(check_results[0]["amount"] * 0.10)
 
 # More tests can be added for expired rules, missing fields, and multiple employees

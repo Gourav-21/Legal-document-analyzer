@@ -1,7 +1,7 @@
 import pytest
 from loader import RuleLoader
 from evaluator import RuleEvaluator
-from penalty_calculator import PenaltyCalculator
+# Removed PenaltyCalculator import - penalties no longer used
 import datetime
 
 
@@ -34,25 +34,25 @@ COMPLEX_RULES = {
                 {
                     "id": "first_2h_violation",
                     "condition": "attendance.overtime_hours > 0",
-                    "underpaid_amount": "max(0, (contract.hourly_rate * 1.25 - payslip.overtime_rate_tier1) * min(attendance.overtime_hours, 2))",
+                    "amount_owed": "max(0, (contract.hourly_rate * 1.25 - payslip.overtime_rate_tier1) * min(attendance.overtime_hours, 2))",
                     "violation_message": "First 2 hours of overtime must be paid at 125%"
                 },
                 {
                     "id": "next_3h_violation", 
                     "condition": "attendance.overtime_hours > 2",
-                    "underpaid_amount": "max(0, (contract.hourly_rate * 1.5 - payslip.overtime_rate_tier2) * min(max(attendance.overtime_hours - 2, 0), 3))",
+                    "amount_owed": "max(0, (contract.hourly_rate * 1.5 - payslip.overtime_rate_tier2) * min(max(attendance.overtime_hours - 2, 0), 3))",
                     "violation_message": "Hours 3-5 of overtime must be paid at 150%"
                 },
                 {
                     "id": "beyond_5h_violation",
                     "condition": "attendance.overtime_hours > 5",
-                    "underpaid_amount": "max(0, (contract.hourly_rate * 2.0 - payslip.overtime_rate_tier3) * max(attendance.overtime_hours - 5, 0))",
+                    "amount_owed": "max(0, (contract.hourly_rate * 2.0 - payslip.overtime_rate_tier3) * max(attendance.overtime_hours - 5, 0))",
                     "violation_message": "Overtime beyond 5 hours must be paid at 200%"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = first_2h_violation + next_3h_violation + beyond_5h_violation",
-                "penalty_amount = total_underpaid_amount * 0.15"
+                "total_amount_owed = first_2h_violation + next_3h_violation + beyond_5h_violation",
+                "penalty_amount = total_amount_owed * 0.15"
             ]
         },
         {
@@ -65,13 +65,13 @@ COMPLEX_RULES = {
             "checks": [
                 {
                     "condition": "attendance.night_hours > 0",
-                    "underpaid_amount": "max(0, (contract.hourly_rate * 0.25) * attendance.night_hours - payslip.night_premium_paid)",
+                    "amount_owed": "max(0, (contract.hourly_rate * 0.25) * attendance.night_hours - payslip.night_premium_paid)",
                     "violation_message": "Night shift hours (22:00-06:00) must include 25% premium"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.20"
+                "total_amount_owed = check_results[0]",
+                "penalty_amount = total_amount_owed * 0.20"
             ]
         },
         {
@@ -84,13 +84,13 @@ COMPLEX_RULES = {
             "checks": [
                 {
                     "condition": "attendance.max_consecutive_work_hours > 144",  # 6 days * 24 hours
-                    "underpaid_amount": "contract.hourly_rate * 8 * attendance.weekly_rest_violations",
+                    "amount_owed": "contract.hourly_rate * 8 * attendance.weekly_rest_violations",
                     "violation_message": "Employee worked more than 6 consecutive days without 36h rest"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.25"
+                "total_amount_owed = check_results[0]",
+                "penalty_amount = total_amount_owed * 0.25"
             ]
         },
         {
@@ -103,13 +103,13 @@ COMPLEX_RULES = {
             "checks": [
                 {
                     "condition": "payslip.vacation_days_taken > 0",
-                    "underpaid_amount": "max(0, (payslip.vacation_days_taken * (contract.daily_rate + attendance.avg_daily_overtime_last_3m)) - payslip.vacation_pay_given)",
+                    "amount_owed": "max(0, (payslip.vacation_days_taken * (contract.daily_rate + attendance.avg_daily_overtime_last_3m)) - payslip.vacation_pay_given)",
                     "violation_message": "Vacation pay must include average overtime compensation"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]", 
-                "penalty_amount = total_underpaid_amount * 0.12"
+                "total_amount_owed = check_results[0]", 
+                "penalty_amount = total_amount_owed * 0.12"
             ]
         },
         {
@@ -122,13 +122,13 @@ COMPLEX_RULES = {
             "checks": [
                 {
                     "condition": "(payslip.base_salary + payslip.benefits_value) / attendance.total_hours < 32.7",
-                    "underpaid_amount": "(32.7 * attendance.total_hours) - (payslip.base_salary + payslip.benefits_value)",
+                    "amount_owed": "(32.7 * attendance.total_hours) - (payslip.base_salary + payslip.benefits_value)",
                     "violation_message": "Total compensation (salary + benefits) below minimum wage"
                 }
             ],
             "penalty": [
-                "total_underpaid_amount = check_results[0]",
-                "penalty_amount = total_underpaid_amount * 0.18"
+                "total_amount_owed = check_results[0]",
+                "penalty_amount = total_amount_owed * 0.18"
             ]
         }
     ]
@@ -173,12 +173,9 @@ class TestComplexScenarios:
         
         for rule in COMPLEX_RULES["rules"]:
             check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-            penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
             
             # Should have no violations
             assert all(cr["amount"] == 0 for cr in check_results), f"Rule {rule['rule_id']} should have no violations"
-            assert penalty["total_underpaid_amount"] == 0
-            assert penalty["penalty_amount"] == 0
 
     def test_multiple_overtime_violations(self):
         """Test complex overtime scenario with violations in all tiers"""
@@ -216,7 +213,6 @@ class TestComplexScenarios:
         rule = COMPLEX_RULES["rules"][0]  # overtime_tiered
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Expected violations:
         # Tier 1: (37.5 - 35.0) * 2 = 5.0
@@ -227,8 +223,6 @@ class TestComplexScenarios:
         assert check_results[0]["amount"] == pytest.approx(5.0)
         assert check_results[1]["amount"] == pytest.approx(15.0)
         assert check_results[2]["amount"] == pytest.approx(30.0)
-        assert penalty["total_underpaid_amount"] == pytest.approx(50.0)
-        assert penalty["penalty_amount"] == pytest.approx(7.5)  # 50.0 * 0.15
 
     def test_night_shift_violation(self):
         """Test night shift premium violation"""
@@ -266,11 +260,9 @@ class TestComplexScenarios:
         rule = COMPLEX_RULES["rules"][1]  # night_shift_premium
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Expected: (32 * 0.25 * 10) - 50 = 80 - 50 = 30
         assert check_results[0]["amount"] == pytest.approx(30.0)
-        assert penalty["penalty_amount"] == pytest.approx(6.0)  # 30.0 * 0.20
 
     def test_weekly_rest_violation(self):
         """Test weekly rest period violation"""
@@ -308,11 +300,9 @@ class TestComplexScenarios:
         rule = COMPLEX_RULES["rules"][2]  # weekly_rest
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Expected: 30 * 8 * 2 = 480
         assert check_results[0]["amount"] == pytest.approx(480.0)
-        assert penalty["penalty_amount"] == pytest.approx(120.0)  # 480.0 * 0.25
 
     def test_vacation_pay_violation(self):
         """Test vacation pay calculation violation"""
@@ -350,11 +340,9 @@ class TestComplexScenarios:
         rule = COMPLEX_RULES["rules"][3]  # vacation_pay
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Expected: 5 * (264 + 40) - 1200 = 1520 - 1200 = 320
         assert check_results[0]["amount"] == pytest.approx(320.0)
-        assert penalty["penalty_amount"] == pytest.approx(38.4)  # 320.0 * 0.12
 
     def test_minimum_wage_with_benefits_violation(self):
         """Test minimum wage violation considering benefits"""
@@ -392,11 +380,9 @@ class TestComplexScenarios:
         rule = COMPLEX_RULES["rules"][4]  # minimum_wage_with_benefits
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-        penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
         
         # Expected: (32.7 * 160) - (4800 + 200) = 5232 - 5000 = 232
         assert check_results[0]["amount"] == pytest.approx(232.0)
-        assert penalty["penalty_amount"] == pytest.approx(41.76)  # 232.0 * 0.18
 
     def test_multiple_rules_multiple_violations(self):
         """Test scenario where multiple rules are violated simultaneously"""
@@ -433,25 +419,22 @@ class TestComplexScenarios:
         context = build_context(payslip, attendance, contract)
         
         total_violations = 0
-        total_penalties = 0
         
         for rule in COMPLEX_RULES["rules"]:
             if not RuleEvaluator.is_rule_applicable(rule, payslip["month"]):
                 continue
                 
             check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
-            penalty = PenaltyCalculator.calculate_penalty(rule["penalty"], check_results, named_results)
             
             violations = [cr for cr in check_results if cr["amount"] > 0]
             if violations:
-                total_violations += penalty["total_underpaid_amount"]
-                total_penalties += penalty["penalty_amount"]
-                print(f"Rule {rule['rule_id']}: Underpaid={penalty['total_underpaid_amount']:.2f}, Penalty={penalty['penalty_amount']:.2f}")
+                rule_total = sum(cr["amount"] for cr in violations)
+                total_violations += rule_total
+                print(f"Rule {rule['rule_id']}: Amount Owed={rule_total:.2f}")
         
         # Should have multiple violations across different rules
         assert total_violations > 0
-        assert total_penalties > 0
-        print(f"Total violations: {total_violations:.2f}, Total penalties: {total_penalties:.2f}")
+        print(f"Total violations: {total_violations:.2f}")
 
 
 if __name__ == "__main__":

@@ -397,11 +397,9 @@ Always check and correct all calculations.
         try:
             from engine.loader import RuleLoader
             from engine.evaluator import RuleEvaluator
-            from engine.penalty_calculator import PenaltyCalculator
             
             self.rule_loader = RuleLoader
             self.rule_evaluator = RuleEvaluator
-            self.penalty_calculator = PenaltyCalculator
             
             # Load rules from the rules file
             rules_path = os.path.join(os.path.dirname(__file__), 'rules/labor_law_rules.json')
@@ -411,7 +409,6 @@ Always check and correct all calculations.
             print(f"⚠️ Failed to initialize Rule Engine: {e}")
             self.rule_loader = None
             self.rule_evaluator = None
-            self.penalty_calculator = None
             self.rules_data = None
         
 
@@ -484,7 +481,7 @@ Always check and correct all calculations.
             Dictionary with rule-based analysis results
         """
         
-        if not self.rule_evaluator or not self.penalty_calculator or not self.rules_data:
+        if not self.rule_evaluator or not self.rules_data:
             raise HTTPException(
                 status_code=500,
                 detail="Rule Engine not properly initialized"
@@ -507,64 +504,28 @@ Always check and correct all calculations.
             
             # Import required components
             from engine.evaluator import RuleEvaluator
-            from engine.penalty_calculator import PenaltyCalculator
             
             # Define context builder function (creates nested structure expected by rules)
             def build_context(payslip, attendance, contract):
-                # Calculate overtime rate from payslip data
-                overtime_rate = 0
-                if payslip.get('overtime_hours', 0) > 0 and payslip.get('overtime_pay', 0) > 0:
-                    overtime_rate = payslip.get('overtime_pay', 0) / payslip.get('overtime_hours', 1)
-                
+                # Use dynamic param config to build context (matches main.py logic)
+                from engine.dynamic_params import DynamicParams
+                params = DynamicParams.load()
                 context = {
-                    'employee_id': payslip.get('employee_id', ''),
-                    'month': payslip.get('month', ''),
-                    'name': payslip.get('name', ''),
-
-                    # Nested payslip object
-                    'payslip': {
-                        'base_salary': payslip.get('base_salary', 0),
-                        'overtime_hours': payslip.get('overtime_hours', 0),
-                        'overtime_pay': payslip.get('overtime_pay', 0),
-                        'overtime_rate': overtime_rate,
-                        'total_salary': payslip.get('total_salary', 0),
-                        'hours_worked': payslip.get('hours_worked', 0),
-                        'hourly_rate': payslip.get('hourly_rate', 0),
-                        'sick_days_taken': payslip.get('sick_days_taken', 0),
-                        'vacation_days_taken': payslip.get('vacation_days_taken', 0)
-                    },
-                    
-                    # Nested attendance object
-                    'attendance': {
-                        'days_worked': attendance.get('days_worked', 0),
-                        'regular_hours': attendance.get('regular_hours', 0),
-                        'overtime_hours': attendance.get('overtime_hours', 0),
-                        'total_hours': attendance.get('total_hours', 0),
-                        'sick_days': attendance.get('sick_days', 0),
-                        'vacation_days': attendance.get('vacation_days', 0)
-                    },
-                    
-                    # Nested contract object
-                    'contract': {
-                        'minimum_wage_monthly': contract.get('minimum_wage_monthly', 0),
-                        'minimum_wage_hourly': contract.get('minimum_wage_hourly', 0),
-                        'hourly_rate': contract.get('minimum_wage_hourly', 32.7),  # Use minimum wage as base
-                        'overtime_rate_125': contract.get('overtime_rate_125', 1.25),
-                        'overtime_rate_150': contract.get('overtime_rate_150', 1.50),
-                        'overtime_rate_175': contract.get('overtime_rate_175', 1.75),
-                        'overtime_rate_200': contract.get('overtime_rate_200', 2.00),
-                        'standard_hours_per_month': contract.get('standard_hours_per_month', 186),
-                        'standard_hours_per_day': contract.get('standard_hours_per_day', 8),
-                        'max_overtime_daily': contract.get('max_overtime_daily', 3),
-                        'vacation_days_per_year': contract.get('vacation_days_per_year', 14),
-                        'sick_days_per_year': contract.get('sick_days_per_year', 18)
-                    }
+                    'payslip': payslip,
+                    'attendance': attendance,
+                    'contract': contract
                 }
+                # Flatten all dynamic params for direct access
+                for section in ['payslip', 'attendance', 'contract']:
+                    for p in params[section]:
+                        context[p['param']] = (locals()[section] or {}).get(p['param'], None)
+                # Add employee_id and month for legacy compatibility
+                context['employee_id'] = context.get('employee_id', payslip.get('employee_id', None))
+                context['month'] = context.get('month', payslip.get('month', None))
                 return context
             
             # Step 1: Evaluate rules against the provided data using improved logic
             results = []
-            total_penalties = 0.0
             
             # Check if we have any data to process
             if not payslip_data:
@@ -576,13 +537,10 @@ Always check and correct all calculations.
                     'violations_count': 0,
                     'inconclusive_count': 0,
                     'compliant_count': 0,
-                    'total_penalties': 0.0,
-                    'total_underpaid': 0.0,
-                    'total_combined': 0.0,
+                    'total_amount_owed': 0.0,
                     'violations_by_law': {},
                     'inconclusive_results': [],
                     'all_results': [],
-                    'rule_engine_used': True
                 }
             
             # Process each payslip with month-based attendance matching
@@ -622,11 +580,8 @@ Always check and correct all calculations.
                     # Evaluate rule checks
                     check_results, named_results = RuleEvaluator.evaluate_checks(rule['checks'], context)
                     
-                    # Calculate penalty
-                    penalty = PenaltyCalculator.calculate_penalty(rule['penalty'], check_results, named_results)
-                    
-                    # Find violations (checks with amount > 0)
-                    violations = [cr for cr in check_results if cr['amount'] > 0]
+                    # Find violations (checks with amount >= 0)
+                    violations = [cr for cr in check_results if cr['amount'] >= 0]
                     
                     # Check if any checks have missing fields
                     missing_fields_results = [cr for cr in check_results if cr.get('missing_fields', [])]
@@ -645,8 +600,7 @@ Always check and correct all calculations.
                             'employee_id': emp_id,
                             'period': month,
                             'violations': violations,
-                            'total_underpaid_amount': penalty.get('total_underpaid_amount', 0.0),
-                            'penalty_amount': penalty['penalty_amount'],
+                            'total_amount_owed': 0 if has_missing_fields else sum(v.get('amount', 0) for v in violations),
                             'check_results': check_results,
                             'has_missing_fields': has_missing_fields,
                             'missing_fields': sorted(list(all_missing_fields)),
@@ -655,9 +609,7 @@ Always check and correct all calculations.
                             'description': rule.get('description', ''),
                             # Add rule metadata for UI display
                             'rule_checks': rule.get('checks', []),
-                            'rule_penalty': rule.get('penalty', []),
                             'context_used': context,
-                            'penalty_calculation': penalty,
                             'named_results': named_results
                         }
                         
@@ -670,30 +622,28 @@ Always check and correct all calculations.
                             result['compliance_status'] = 'violation'
                         
                         results.append(result)
-                        total_penalties += penalty['penalty_amount']
             
             # Step 2: Generate report based on analysis_type
             violation_results = [r for r in results if r['compliance_status'] == 'violation']
             inconclusive_results = [r for r in results if r['compliance_status'] == 'inconclusive']
             compliant_results = [r for r in results if r['compliance_status'] == 'compliant']
             
-             # Calculate combined total (underpaid + penalties)
-            total_underpaid = sum(result.get('total_underpaid_amount', 0) for result in violation_results)
-            total_combined = total_underpaid + total_penalties
+             # Calculate combined total (amount owed + penalties)
+            total_amount_owed = sum(result.get('total_amount_owed', 0) for result in violation_results)
             
             # Handle different analysis types
             if analysis_type in ["violations_list", "easy", "table", "violation_count_table"]:
                 # Use non-AI formatting for these types
                 legal_analysis = self._format_rule_engine_results_non_ai(
                     violation_results, inconclusive_results, compliant_results, 
-                    total_penalties, analysis_type
+                    total_amount_owed, analysis_type
                 )
             else:
                 # Use AI formatting for complex types like "report", "combined", etc.
-                legal_analysis = await self._format_rule_engine_results_with_ai(
-                    violation_results, inconclusive_results, compliant_results, 
-                    total_penalties, analysis_type, total_combined
-                )
+                    legal_analysis = await self._format_rule_engine_results_with_ai(
+                        violation_results, inconclusive_results, compliant_results, 
+                        total_amount_owed, analysis_type
+                    )
             
             # Group results by law reference for return data
             violations_by_law = {}
@@ -712,9 +662,7 @@ Always check and correct all calculations.
                 'violations_count': len(violation_results),
                 'inconclusive_count': len(inconclusive_results),
                 'compliant_count': len(compliant_results),
-                'total_penalties': total_penalties,
-                'total_underpaid': total_underpaid,
-                'total_combined': total_combined,
+                'total_amount_owed': total_amount_owed,
                 'violations_by_law': violations_by_law,
                 'inconclusive_results': inconclusive_results,
             }
@@ -729,7 +677,7 @@ Always check and correct all calculations.
     def _format_rule_engine_results_non_ai(self, violation_results: List[Dict], 
                                            inconclusive_results: List[Dict], 
                                            compliant_results: List[Dict], 
-                                           total_penalties: float, 
+                                           total_amount_owed: float, 
                                            analysis_type: str) -> str:
         """Format rule engine results without AI for specific analysis types"""
         
@@ -756,12 +704,10 @@ Always check and correct all calculations.
                 emp_id = result['employee_id']
                 period = result['period']
                 rule_name = result.get('rule_name', 'הפרה')
-                # Combine underpaid amount and penalty
-                underpaid = result.get('total_underpaid_amount', 0)
-                penalty = result.get('penalty_amount', 0)
-                amount = underpaid + penalty
+                # Use amount owed directly (penalties no longer used)
+                amount = result.get('total_amount_owed', 0)
                 
-                if amount > 0:
+                if amount >= 0:
                     easy_text += f"- ❌ **{rule_name}** ב{period} - **{amount:,.0f} ₪**\n"
                     total_amount += amount
             
@@ -790,9 +736,7 @@ Always check and correct all calculations.
                 for i, result in enumerate(group_results, 1):
                     rule_name = result.get('rule_name', 'הפרה')
                     # Combine underpaid amount and penalty
-                    underpaid = result.get('total_underpaid_amount', 0)
-                    penalty = result.get('penalty_amount', 0)
-                    amount = underpaid + penalty
+                    amount = result.get('total_amount_owed', 0)
                     hebrew_letter = chr(ord('א') + i - 1)  # Convert to Hebrew letters
                     table_text += f"{hebrew_letter}. סכום של **{amount:.2f} ש\"ח** עבור **{rule_name}**\n"
                 table_text += "\n"
@@ -816,9 +760,8 @@ Always check and correct all calculations.
                 period = result['period']
                 rule_name = result.get('rule_name', 'הפרה')
                 # Combine underpaid amount and penalty
-                underpaid = result.get('total_underpaid_amount', 0)
-                penalty = result.get('penalty_amount', 0)
-                amount = underpaid + penalty
+                underpaid = result.get('total_amount_owed', 0)
+                amount = result.get('total_amount_owed', 0)
                 
                 table_text += f"עובד {emp_id} | {rule_name} | {period} | {amount:,.2f} | 1\n"
                 total_amount += amount
@@ -842,13 +785,13 @@ Always check and correct all calculations.
         else:
             # Default rule-based report format
             return self._format_default_rule_engine_report(
-                violation_results, inconclusive_results, compliant_results, total_penalties
+                violation_results, inconclusive_results, compliant_results, total_amount_owed
             )
     
     def _format_default_rule_engine_report(self, violation_results: List[Dict], 
                                           inconclusive_results: List[Dict], 
                                           compliant_results: List[Dict], 
-                                          total_penalties: float) -> str:
+                                          total_amount_owed: float) -> str:
         """Format default rule engine report"""
         report_sections = []
         
@@ -858,7 +801,7 @@ Always check and correct all calculations.
         report_sections.append(f"- **סה\"כ הפרות שזוהו:** {len(violation_results)}")
         report_sections.append(f"- **בדיקות לא חד-משמעיות (חסרים נתונים):** {len(inconclusive_results)}")
         report_sections.append(f"- **בדיקות תקינות:** {len(compliant_results)}")
-        report_sections.append(f"- **סה\"כ קנסות משוערים:** {total_penalties:,.2f} ₪")
+        report_sections.append(f"- **סה\"כ חסר בתשלום:** {total_amount_owed:,.2f} ₪")
         
         # Violations section
         if violation_results:
@@ -876,14 +819,14 @@ Always check and correct all calculations.
                 if result['violations']:
                     report_sections.append("**פרטי ההפרות:**")
                     for violation in result['violations']:
-                        if violation['amount'] > 0:
+                        if violation['amount'] >= 0:
                             report_sections.append(f"  - {violation.get('description', 'הפרה')}: {violation['amount']:,.2f} ₪")
                 
-                if result['total_underpaid_amount'] > 0:
-                    report_sections.append(f"**סכום חסר בתשלום:** {result['total_underpaid_amount']:,.2f} ₪")
+                if result['total_amount_owed'] >= 0:
+                    report_sections.append(f"**סכום חסר בתשלום:** {result['total_amount_owed']:,.2f} ₪")
                 
-                if result['penalty_amount'] > 0:
-                    report_sections.append(f"**קנס משוער:** {result['penalty_amount']:,.2f} ₪")
+                # if result['penalty_amount'] > 0:
+                #     report_sections.append(f"**סכום חסר:** {result['total_amount_owed']:,.2f} ₪")
         
         # Missing data section
         if inconclusive_results:
@@ -913,8 +856,8 @@ Always check and correct all calculations.
             recommendations = []
             
             for result in violation_results:
-                if result['total_underpaid_amount'] > 0:
-                    recommendations.append(f"להשלים תשלום חסר של {result['total_underpaid_amount']:,.2f} ₪ לעובד {result['employee_id']} עבור תקופה {result['period']}")
+                if result['total_amount_owed'] >= 0:
+                    recommendations.append(f"להשלים תשלום חסר של {result['total_amount_owed']:,.2f} ₪ לעובד {result['employee_id']} עבור תקופה {result['period']}")
             
             for i, recommendation in enumerate(recommendations, 1):
                 report_sections.append(f"{i}. {recommendation}")
@@ -924,9 +867,8 @@ Always check and correct all calculations.
     async def _format_rule_engine_results_with_ai(self, violation_results: List[Dict], 
                                                  inconclusive_results: List[Dict], 
                                                  compliant_results: List[Dict], 
-                                                 total_penalties: float, 
-                                                 analysis_type: str,
-                                                 total_combined: float) -> str:
+                                                 total_amount_owed: float, 
+                                                 analysis_type: str) -> str:
         """Format rule engine results using AI for complex analysis types"""
         
         # Prepare data summary for AI
@@ -934,7 +876,7 @@ Always check and correct all calculations.
             'violations': violation_results,
             'inconclusive': inconclusive_results,
             'compliant': compliant_results,
-            'total_penalties': total_penalties,
+            'total_amount_owed': total_amount_owed,
             'violation_count': len(violation_results),
             'inconclusive_count': len(inconclusive_results),
             'compliant_count': len(compliant_results)
@@ -960,8 +902,7 @@ Always check and correct all calculations.
 - סה"כ הפרות: {len(violation_results)}
 - בדיקות לא חד-משמעיות: {len(inconclusive_results)}
 - בדיקות תקינות: {len(compliant_results)}
-- סה"כ קנסות: {total_penalties:,.2f} ₪
-- סה"כ (חסר + קנס): {total_combined:,.2f} ₪
+- סה"כ חסר בתשלום: {total_amount_owed:,.2f} ₪
 פירוט הפרות:
 {self._format_violations_for_ai_prompt(violation_results)}
 
@@ -980,19 +921,16 @@ Always check and correct all calculations.
             # Fallback to non-AI formatting if AI fails
             print(f"AI formatting failed, using fallback: {e}")
             return self._format_default_rule_engine_report(
-                violation_results, inconclusive_results, compliant_results, total_penalties
+                violation_results, inconclusive_results, compliant_results, total_amount_owed
             )
     
     def _format_violations_for_ai_prompt(self, violation_results: List[Dict]) -> str:
         """Format violations data for AI prompt"""
         if not violation_results:
             return "לא נמצאו הפרות"
-        
         formatted = []
         for result in violation_results:
-            underpaid = result.get('total_underpaid_amount', 0)
-            penalty = result.get('penalty_amount', 0)
-            total_combined = underpaid + penalty
+            underpaid = result.get('total_amount_owed', 0)
             formatted.append(f"""
 הפרה: {result.get('rule_name', 'לא מוגדר')}
 עובד: {result['employee_id']}
@@ -1000,11 +938,8 @@ Always check and correct all calculations.
 בסיס חוקי: {result.get('law_reference', 'לא מוגדר')}
 תיאור: {result.get('description', 'לא זמין')}
 סכום חסר: {underpaid:,.2f} ₪
-קנס: {penalty:,.2f} ₪
-סה"כ (חסר + קנס): {total_combined:,.2f} ₪
-פרטי הפרות: {', '.join([f"{v.get('description', 'הפרה')}: {v['amount']:,.2f} ₪" for v in result.get('violations', []) if v['amount'] > 0])}
+פרטי הפרות: {', '.join([f"{v.get('description', 'הפרה')}: {v['amount']:,.2f} ₪" for v in result.get('violations', []) if v['amount'] >= 0])}
 """)
-        
         return "\n".join(formatted)
     
     def _format_inconclusive_for_ai_prompt(self, inconclusive_results: List[Dict]) -> str:
@@ -1820,7 +1755,7 @@ EXAMPLE of correct output:
 
 • לא שולם שכר מינימום - חוק שכר מינימום
 • לא שולמו שעות נוספות - חוק שעות עבודה ומנוחה
-• לא הופקדה פנסיה - צו הרחבה פנסיה
+• לא הופקדה פנסיה - צו הרחבה פנסיה חובה
 
 If you write ANYTHING beyond this format, you FAILED.
 """
@@ -1946,7 +1881,7 @@ Please generate the warning letter in Hebrew with the following guidelines:
     3. אם יש מספר רכיבי פנסיה (עובד/מעסיק/בריאות) בחודש מסוים – חבר אותם לסכום אחד של פנסיה באותו החודש.
     4. כל הסכומים יוצגו עם פסיקים לאלפים ועם ₪ בסוף.
     5. חישוב הסכום הכולל יופיע בשורה נפרדת:
-💰 סה"כ: [סכום כולל] ₪
+💰 סה"כ: [total amount] ₪
     6. הוסף המלצה בסוף:
 📝 מה לעשות עכשיו:
 פנה/י למעסיק עם דרישה לתשלום הסכומים.

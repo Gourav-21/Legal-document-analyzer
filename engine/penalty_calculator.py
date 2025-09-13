@@ -11,7 +11,7 @@ class PenaltyCalculator:
         
         local_vars = {
             'check_results': [r['amount'] for r in check_results],
-            'total_underpaid_amount': 0.0,
+            'total_amount_owed': 0.0,
             'penalty_amount': 0.0,
             **named_results
         }
@@ -26,6 +26,6 @@ class PenaltyCalculator:
                     print(f"[Penalty Eval Error] {expr}: {e}")
                     local_vars[var] = 0.0
         return {
-            'total_underpaid_amount': local_vars.get('total_underpaid_amount', 0.0),
+            'total_amount_owed': local_vars.get('total_amount_owed', 0.0),
             'penalty_amount': local_vars.get('penalty_amount', 0.0)
         }
