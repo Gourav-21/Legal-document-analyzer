@@ -15,13 +15,13 @@
         {
           "id": "first_2h",
           "condition": "attendance.overtime_hours > 0",
-          "underpaid_amount": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
+          "amount_owed": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
           "violation_message": "First 2 hours of overtime must be paid at 125% of base rate"
         },
         {
           "id": "after_2h",
           "condition": "attendance.overtime_hours > 2",
-          "underpaid_amount": "(contract.hourly_rate * 1.5 - payslip.overtime_rate) * max(attendance.overtime_hours - 2, 0)",
+          "amount_owed": "(contract.hourly_rate * 1.5 - payslip.overtime_rate) * max(attendance.overtime_hours - 2, 0)",
           "violation_message": "Overtime beyond 2 hours must be paid at 150% of base rate"
         }
       ],
@@ -39,7 +39,7 @@
         {
           "id": "min_wage_check",
           "condition": "contract.hourly_rate < 32.7",
-          "underpaid_amount": "(32.7 - contract.hourly_rate) * attendance.total_hours",
+          "amount_owed": "(32.7 - contract.hourly_rate) * attendance.total_hours",
           "violation_message": "Hourly rate below minimum wage"
         }
       ],

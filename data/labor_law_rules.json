@@ -9,13 +9,13 @@
       "checks": [
         {
           "condition": "attendance.overtime_hours > 0",
-          "underpaid_amount": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
+          "amount_owed": "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)",
           "violation_message": "First 2 hours of overtime must be paid at 125%"
         }
       ],
       "penalty": [
-        "total_underpaid_amount = check_results[0]",
-        "penalty_amount = total_underpaid_amount * 0.05"
+        "total_amount_owed = check_results[0]",
+        "penalty_amount = total_amount_owed * 0.05"
       ],
       "created_date": "2025-09-01T19:14:44.192Z",
       "updated_date": "2025-09-01T19:14:44.192Z"
