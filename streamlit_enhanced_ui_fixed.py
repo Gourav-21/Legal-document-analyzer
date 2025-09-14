@@ -101,11 +101,11 @@ def save_rules_data(rules_data):
 def get_dynamic_params():
     return DynamicParams.load()
 
-def add_dynamic_param(section, param, label):
-    DynamicParams.add_param(section, param, label)
+def add_dynamic_param(section, param, label_en, label_he=None, description=None):
+    DynamicParams.add_param(section, param, label_en, label_he, description)
 
 def get_param_labels(section):
-    return [p['label'] for p in DynamicParams.get_params(section)]
+    return [p['label_en'] for p in DynamicParams.get_params(section)]
 
 def get_param_names(section):
     return [p['param'] for p in DynamicParams.get_params(section)]
@@ -189,7 +189,7 @@ with tab1:
             payslip_inputs = {}
             for p in dynamic_params['payslip']:
                 if p['param'] in ['employee_id', 'month']:
-                    payslip_inputs[p['param']] = st.text_input(p['label'], value="" if p['param'] == 'month' else "TEST_001", key=f"payslip_{p['param']}")
+                    payslip_inputs[p['param']] = st.text_input(p['label_en'], value="" if p['param'] == 'month' else "TEST_001", key=f"payslip_{p['param']}")
         with col2:
             st.markdown("**Data Sections to Include**")
             include_payslip = st.checkbox("Include Payslip Data", value=True, key="test_include_payslip")
@@ -204,7 +204,7 @@ with tab1:
             for i in range(0, len(payslip_fields), 3):
                 cols = st.columns(3)
                 for j, p in enumerate(payslip_fields[i:i+3]):
-                    label = p['label']
+                    label = p['label_en']
                     key = f"payslip_{p['param']}"
                     if '₪' in label or 'Rate' in label:
                         payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
@@ -223,7 +223,7 @@ with tab1:
             for i in range(0, len(attendance_fields), 3):
                 cols = st.columns(3)
                 for j, p in enumerate(attendance_fields[i:i+3]):
-                    label = p['label']
+                    label = p['label_en']
                     key = f"attendance_{p['param']}"
                     attendance_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
             test_attendance_data = {**attendance_inputs}
@@ -238,7 +238,7 @@ with tab1:
             for i in range(0, len(contract_fields), 3):
                 cols = st.columns(3)
                 for j, p in enumerate(contract_fields[i:i+3]):
-                    label = p['label']
+                    label = p['label_en']
                     key = f"contract_{p['param']}"
                     if '₪' in label or 'Rate' in label or 'Contribution' in label:
                         contract_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
@@ -256,15 +256,17 @@ with tab1:
     with st.form("add_param_form"):
         param_section = st.selectbox("Section", ["payslip", "attendance", "contract"], key="add_param_section")
         param_name = st.text_input("Parameter Name (use snake_case)", key="add_param_name")
-        param_label = st.text_input("Parameter Label (shown in UI)", key="add_param_label")
+        param_label_en = st.text_input("English Label (shown in UI)", key="add_param_label_en")
+        param_label_he = st.text_input("Hebrew Label (optional)", key="add_param_label_he")
+        param_description = st.text_area("Description (optional)", key="add_param_description")
         submit_param_btn = st.form_submit_button("Add Parameter")
         if submit_param_btn:
-            if param_name and param_label:
-                add_dynamic_param(param_section, param_name, param_label)
+            if param_name and param_label_en:
+                add_dynamic_param(param_section, param_name, param_label_en, param_label_he if param_label_he else None, param_description if param_description else None)
                 st.success(f"Added parameter '{param_name}' to {param_section}!")
                 st.rerun()
             else:
-                st.error("Parameter name and label are required.")
+                st.error("Parameter name and English label are required.")
 
     st.markdown("---")
     st.subheader("🗑️ Remove Dynamic Parameter")
@@ -1035,7 +1037,7 @@ overtime_hours, total_hours, etc.
         for section in ['payslip', 'attendance', 'contract']:
             st.markdown(f"**{section.capitalize()} Data:**")
             for p in dynamic_params[section]:
-                st.markdown(f"- `{section}.{p['param']}` - {p['label']}")
+                st.markdown(f"- `{section}.{p['param']}` - {p['label_en']}")
             st.markdown("")
         st.markdown("**Flattened Access:** You can also access fields directly, e.g. `overtime_hours`, `hourly_rate`, etc.")
         st.markdown("""
@@ -1202,7 +1204,7 @@ with tab3:
                 payslip_inputs = {}
                 for p in dynamic_params['payslip']:
                     if p['param'] in ['employee_id', 'month']:
-                        payslip_inputs[p['param']] = st.text_input(p['label'], value="" if p['param'] == 'month' else "TEST_001", key=f"payslip_{p['param']}_heb")
+                        payslip_inputs[p['param']] = st.text_input(p['label_en'], value="" if p['param'] == 'month' else "TEST_001", key=f"payslip_{p['param']}_heb")
             with col2:
                 st.markdown("**סעיפי נתונים לכלול**")
                 include_payslip = st.checkbox("כלול נתוני תלוש שכר", value=True, key="test_include_payslip_heb")
@@ -1217,7 +1219,7 @@ with tab3:
                 for i in range(0, len(payslip_fields), 3):
                     cols = st.columns(3)
                     for j, p in enumerate(payslip_fields[i:i+3]):
-                        label = p['label']
+                        label = p['label_en']
                         key = f"payslip_{p['param']}_heb"
                         if '₪' in label or 'Rate' in label:
                             payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
@@ -1235,7 +1237,7 @@ with tab3:
                 for i in range(0, len(attendance_fields), 3):
                     cols = st.columns(3)
                     for j, p in enumerate(attendance_fields[i:i+3]):
-                        label = p['label']
+                        label = p['label_en']
                         key = f"attendance_{p['param']}_heb"
                         attendance_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
                 test_attendance_data = {**attendance_inputs}
@@ -1250,7 +1252,7 @@ with tab3:
                 for i in range(0, len(contract_fields), 3):
                     cols = st.columns(3)
                     for j, p in enumerate(contract_fields[i:i+3]):
-                        label = p['label']
+                        label = p['label_en']
                         key = f"contract_{p['param']}_heb"
                         if '₪' in label or 'Rate' in label or 'Contribution' in label:
                             contract_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
@@ -1266,15 +1268,17 @@ with tab3:
         with st.form("add_param_form_heb"):
             param_section = st.selectbox("סעיף", ["payslip", "attendance", "contract"], key="add_param_section_heb")
             param_name = st.text_input("שם פרמטר (snake_case)", key="add_param_name_heb")
-            param_label = st.text_input("תווית פרמטר (מוצג בממשק)", key="add_param_label_heb")
+            param_label_en = st.text_input("תווית באנגלית (מוצג בממשק)", key="add_param_label_en_heb")
+            param_label_he = st.text_input("תווית בעברית (אופציונלי)", key="add_param_label_he_heb")
+            param_description = st.text_area("תיאור (אופציונלי)", key="add_param_description_heb")
             submit_param_btn = st.form_submit_button("הוסף פרמטר")
             if submit_param_btn:
-                if param_name and param_label:
-                    add_dynamic_param(param_section, param_name, param_label)
+                if param_name and param_label_en:
+                    add_dynamic_param(param_section, param_name, param_label_en, param_label_he if param_label_he else None, param_description if param_description else None)
                     st.success(f"הפרמטר '{param_name}' נוסף ל-{param_section}!")
                     st.rerun()
                 else:
-                    st.error("שם ותווית הפרמטר נדרשים.")
+                    st.error("שם ותווית באנגלית של הפרמטר נדרשים.")
 
         st.markdown("---")
         st.subheader("🗑️ הסר פרמטר דינמי")

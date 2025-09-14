@@ -1815,39 +1815,6 @@ CRITICAL: Replace ALL placeholders with actual calculated values from the analys
 """"""
 """
 
-#     def _get_professional_instructions(self) -> str:
-#         return """
-# Analyze the provided documents for labor law violations based strictly on the retrieved Israeli labor laws and the content of the documents. For each violation, calculate the monetary differences using only those laws.
-# Provide your analysis in the following format, entirely in Hebrew:
-
-# ניתוח מקצועי של הפרות שכר:
-
-# הפרה: [כותרת ההפרה]
-# [תיאור מפורט של ההפרה, כולל תאריכים רלוונטיים, שעות עבודה, שכר שעתי וחישובים, בהתבסס אך ורק על החוקים הישראליים שנמצאו והמסמכים שסופקו.
-# דוגמה: העובד עבד X שעות נוספות בין [חודש שנה] ל-[חודש שנה]. לפי שכר שעתי בסיסי של [שכר] ₪ ושיעורי תשלום שעות נוספות ([שיעור1]% עבור X השעות הראשונות, [שיעור2]% לאחר מכן) כפי שמופיע בחוקי העבודה שנמצאו, העובד היה זכאי ל-[סכום] ₪ לחודש. בפועל קיבל רק [סכום שקיבל] ₪ למשך X חודשים ו-[סכום] ₪ בחודש [חודש].]
-# סה"כ חוב: [סכום ההפרש עבור הפרה זו] ₪
-
-# הפרה: [כותרת ההפרה]
-# [תיאור מפורט של ההפרה, כולל תאריכים וחישובים, בהתבסס אך ורק על החוקים שנמצאו והמסמכים. 
-# דוגמה: בחודש [חודש שנה] לא בוצעה הפקדה לפנסיה. המעסיק מחויב להפקיד [אחוז]% מהשכר בגובה [שכר] ₪ = [סכום] ₪ בהתאם לחוק/צו הרחבה שנמצא.]
-# סה"כ חוב פנסיה: [סכום חוב הפנסיה להפרה זו] ₪
-
-# ---
-
-# סה"כ תביעה משפטית (לא כולל ריבית): [הסכום הכולל לתביעה מכלל ההפרות] ₪  
-# אסמכתאות משפטיות: [רשימת שמות החוק הרלוונטיים מתוך החוקים הישראליים שנמצאו. לדוגמה: חוק שעות עבודה ומנוחה, צו הרחבה לפנסיה חובה]
-
-# SUMMARY TABLE:
-# After completing the professional analysis, provide a summary table with actual data:
-# - Use the heading: === טבלת סיכום הפרות מקצועי ===
-# - Create columns for: סוג הפרה | תקופה | סכום (₪)
-# - Add rows with actual violation types, periods, and amounts from your analysis
-# - End with a total line showing the total amount in ₪
-# - Include legal references from retrieved laws
-
-# CRITICAL: Replace ALL placeholders with actual data from the analysis. Do not output template text.
-# """
-
     def _get_warning_letter_instructions(self) -> str:
         format_content = self.letter_format.get_format().get('content', '')
 

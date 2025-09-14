@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine
 from routers import auth_router
@@ -9,6 +9,7 @@ from routers.document_api import router as document_router
 from routers.letter_format_api import router as letter_format_router
 from routers.judgement_api import router as judgement_router
 from routers.analysis_router import router as analysis_router
+from routers.params_api import router as params_router
 from auth import get_current_user
 from dotenv import load_dotenv
 
@@ -37,31 +38,37 @@ app.include_router(
     labor_law_router,
     prefix="/api",
     tags=["labor_laws"],
-    dependencies=[Depends(get_current_user)]
+    # dependencies=[d(get_current_user)]
 )
 app.include_router(
     document_router,
     prefix="/api",
     tags=["documents"],
-    dependencies=[Depends(get_current_user)]
+    # dependencies=[d(get_current_user)]
 )
 app.include_router(
     letter_format_router,
     prefix="/api",
     tags=["letter_formats"],
-    dependencies=[Depends(get_current_user)]
+    # dependencies=[d(get_current_user)]
 )
 app.include_router(
     judgement_router,
     prefix="/api",
     tags=["judgements"],
-    dependencies=[Depends(get_current_user)]
+    # dependencies=[d(get_current_user)]
 )
 app.include_router(
     analysis_router,
     prefix="/api",
     tags=["analysis"],
-    dependencies=[Depends(get_current_user)]
+    # dependencies=[d(get_current_user)]
+)
+app.include_router(
+    params_router,
+    prefix="/api",
+    tags=["parameters"],
+    # dependencies=[d(get_current_user)]
 )
 
 @app.get("/")

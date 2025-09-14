@@ -17,7 +17,7 @@ class DynamicParams:
             json.dump(params, f, indent=2, ensure_ascii=False)
 
     @staticmethod
-    def add_param(section, param, label):
+    def add_param(section, param, label_en, label_he=None, description=None):
         """Add a new parameter to a section (payslip, attendance, contract)."""
         params = DynamicParams.load()
         if section not in params:
@@ -25,10 +25,19 @@ class DynamicParams:
         # Prevent duplicates
         for p in params[section]:
             if p['param'] == param:
-                p['label'] = label
+                p['label_en'] = label_en
+                if label_he is not None:
+                    p['label_he'] = label_he
+                if description is not None:
+                    p['description'] = description
                 DynamicParams.save(params)
                 return
-        params[section].append({'param': param, 'label': label})
+        new_param = {'param': param, 'label_en': label_en}
+        if label_he is not None:
+            new_param['label_he'] = label_he
+        if description is not None:
+            new_param['description'] = description
+        params[section].append(new_param)
         DynamicParams.save(params)
 
     @staticmethod
@@ -53,5 +62,5 @@ class DynamicParams:
 
     @staticmethod
     def get_all_param_labels():
-        """Get all parameters with labels for all sections: {section: [{param, label}, ...]}"""
+        """Get all parameters with labels for all sections: {section: [{param, label_en, label_he, description}, ...]}"""
         return DynamicParams.load()

@@ -10,7 +10,6 @@
       "law_reference": "Hours of Work and Rest Law, 1951 - Sections 16A & 16B",
       "description": "Overtime must be paid correctly: first 2 hours at 125% and additional hours at 150% of the base hourly rate",
       "effective_from": "2023-01-01",
-      "effective_to": null,
       "checks": [
         {
           "id": "first_2h",
@@ -26,7 +25,7 @@
         }
       ],
       "created_date": "2024-01-01T00:00:00Z",
-      "updated_date": "2025-08-29T00:00:00Z"
+      "updated_date": "2025-09-13T17:36:45.811Z"
     },
     {
       "rule_id": "minimum_wage",
