@@ -1104,7 +1104,7 @@ Always check and correct all calculations.
             print(f"Processing file: {file.filename} as type: {doc_type}")
             # Properly read the file content from UploadFile
             if hasattr(file, 'read'):
-                content = file.read()  # Try synchronous read first
+                content = await file.read()  # Await the async read method
                 if isinstance(content, bytes):
                     pass  # Good, we got bytes
                 else:
