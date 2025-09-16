@@ -26,3 +26,5 @@ google-cloud-vision
 pypdf
 psycopg2-binary
 openpyxl
+psycopg
+psycopg_binary
