@@ -87,7 +87,7 @@ class RuleEvaluator:
         date = datetime.datetime.strptime(date_str, "%Y-%m")
         eff_from = datetime.datetime.strptime(rule["effective_from"], "%Y-%m-%d")
         eff_to = None
-        if rule["effective_to"]:
+        if rule.get("effective_to"):
             eff_to = datetime.datetime.strptime(rule["effective_to"], "%Y-%m-%d")
         if eff_to:
             return eff_from <= date <= eff_to

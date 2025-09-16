@@ -26,6 +26,10 @@ class ExportExcelRequest(BaseModel):
 class FixOCRRequest(BaseModel):
     ocr_content: str
 
+class GenerateRuleRequest(BaseModel):
+    rule_description: str
+
+
 @router.post("/export_excel")
 async def export_excel_endpoint(
     request_body: ExportExcelRequest = Body(...)
@@ -75,13 +79,8 @@ async def create_report(
                 status_code=400,
                 detail="At least one document text must be provided"
             )
-
-        # Parse input data into structured dictionaries
-        # payslip_data = json.loads(payslip_text) if payslip_text else []
-        # attendance_data = json.loads(attendance_text) if attendance_text else []
-        # contract_data = json.loads(contract_text) if contract_text else {}
-
-        # Call the updated rule engine function
+        print(payslip_text)
+        print(attendance_text)
         result = await doc_processor.create_report_with_rule_engine(
             payslip_data=payslip_text,
             attendance_data=attendance_text,
@@ -157,4 +156,23 @@ async def fix_ocr_endpoint(
     except Exception as e:
         print(f"Error fixing OCR content: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fixing OCR content: {str(e)}")
+
+
+@router.post("/generate-rule")
+async def generate_rule_endpoint(
+    request_body: GenerateRuleRequest = Body(...),
+) -> Dict:
+    """Generate a machine-readable rule JSON from a natural language description.
+
+    Requires authentication (current_user) and saves nothing to the DB — just returns the generated checks.
+    """
+    try:
+        # Generate the rule using the document processor (loads dynamic params internally)
+        generated_checks = await doc_processor.generate_ai_rule_checks(request_body.rule_description)
+        return {"generated_checks": generated_checks}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(f"Error generating rule: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating rule: {str(e)}")
 

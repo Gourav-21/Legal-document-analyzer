@@ -12,6 +12,7 @@ except ImportError:
 from fastapi import UploadFile, HTTPException
 from PIL import Image
 import os
+import json
 from dotenv import load_dotenv
 import pdfplumber
 from io import BytesIO
@@ -230,14 +231,14 @@ class DocumentProcessor:
             
     def __init__(self):
         # Initialize RAG storage
-        self.rag_storage = RAGLegalStorage()
+        # self.rag_storage = RAGLegalStorage()
         
         # Initialize backward compatibility storages
-        self.letter_format = LetterFormatStorage()
+        # self.letter_format = LetterFormatStorage()
         # self.law_storage = LaborLawStorage()
         # self.judgement_storage = JudgementStorage()
-        self.law_storage = self.rag_storage
-        self.judgement_storage = self.rag_storage
+        # self.law_storage = self.rag_storage
+        # self.judgement_storage = self.rag_storage
         
         # Initialize PydanticAI model - use Google Gemini
         gemini_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
@@ -412,6 +413,113 @@ Always check and correct all calculations.
             self.rules_data = None
         
 
+    async def generate_ai_rule_checks(self, rule_description: str) -> List[Dict]:
+        """
+        Generate AI-powered rule checks based on description using dynamic parameters and available functions from engine
+        
+        Args:
+            rule_description: Description of the labor law rule to implement
+        
+        Returns:
+            List of check dictionaries, each containing id, condition, amount_owed, and violation_message
+        """
+        
+        # Load dynamic parameters from engine
+        from engine.dynamic_params import DynamicParams
+        dynamic_params = DynamicParams.load()
+        
+        # Extract available parameters as lists of param names
+        available_params = {}
+        for section, params_list in dynamic_params.items():
+            available_params[section] = [p['param'] for p in params_list]
+        
+        # Get available functions from engine (matching RuleEvaluator)
+        available_functions = ["min", "max", "abs", "round"]
+        
+        # Format available parameters for the AI prompt
+        params_summary = ""
+        for section, params in available_params.items():
+            params_summary += f"- {section}: {', '.join(params)}\n"
+        
+        functions_summary = ", ".join(available_functions)
+        
+        prompt = f"""
+אתה מומחה ליצירת כללי בדיקה משפטיים עבור חוקי עבודה ישראליים.
+
+עליך ליצור מערך של בדיקות מפורטות המבוסס על התיאור הבא:
+{rule_description}
+
+פרמטרים זמינים:
+{params_summary}
+
+פונקציות מתמטיות זמינות: {functions_summary}
+
+הנחיות ליצירת הבדיקות:
+
+1. **בדיקות (checks)** - צור מערך של בדיקות עם השדות הבאים לכל בדיקה:
+   - id: מזהה ייחודי לבדיקה (באנגלית, עם קווים תחתונים)
+   - condition: תנאי בדיקה באמצעות הפרמטרים הזמינים (שימוש בתחביר Python)
+   - amount_owed: נוסחה לחישוב הסכום החסר (השתמש בפרמטרים ופונקציות זמינות)
+   - violation_message: הודעת הפרה ברורה בעברית
+
+2. **דוגמאות לתחביר**:
+   - condition: "attendance.overtime_hours > 2"
+   - amount_owed: "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)"
+   - השתמש ב-min(), max(), abs() לפי הצורך
+
+3. **חשוב**:
+   - השתמש רק בפרמטרים מהרשימה הזמינה
+   - וודא שהנוסחאות מתמטיות נכונות
+   - התמקד בחוקי עבודה ישראליים
+   - צור בדיקות מרובות אם נדרש לבדוק מקרים שונים
+
+החזר את התוצאה כ-JSON תקין בפורמט הבא:
+[
+  {{
+    "id": "overtime_first_2_hours",
+    "condition": "attendance.overtime_hours > 0",
+    "amount_owed": "min(attendance.overtime_hours, 2) * (contract.hourly_rate * 0.25)",
+    "violation_message": "השעות הנוספות הראשונות לא שולמו בתעריף הנכון"
+  }},
+  {{
+    "id": "overtime_additional_hours", 
+    "condition": "attendance.overtime_hours > 2",
+    "amount_owed": "(attendance.overtime_hours - 2) * (contract.hourly_rate * 0.5)",
+    "violation_message": "השעות הנוספות הנוספות לא שולמו בתעריף הנכון"
+  }}
+]
+"""
+        
+        result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+        response_text = result.output if hasattr(result, 'output') else str(result)
+        
+        # Try to parse the JSON response
+        try:
+            generated_checks = json.loads(response_text)
+            # Ensure it's a list
+            if isinstance(generated_checks, list):
+                return generated_checks
+            else:
+                # If it's a dict with checks key, extract the checks
+                if isinstance(generated_checks, dict) and 'checks' in generated_checks:
+                    return generated_checks['checks']
+                else:
+                    raise ValueError("AI response is not a valid checks array")
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try to extract JSON array from the response
+            import re
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            if json_match:
+                try:
+                    generated_checks = json.loads(json_match.group())
+                    if isinstance(generated_checks, list):
+                        return generated_checks
+                except json.JSONDecodeError:
+                    pass
+            
+            # If all parsing fails, raise an exception
+            raise ValueError(f"Failed to parse AI response as JSON array: {response_text}")
+
     async def review_analysis(self, laws: str, judgements: str, analysis: str, documents: Dict[str, str], context: str) -> str:
         """
         Review the analysis against the provided laws and judgements. If correct, return as-is. If not, return a corrected analysis.
@@ -489,6 +597,7 @@ Always check and correct all calculations.
         
         try:
             print("🔄 Running rule-based analysis...")
+            print(analysis_type)
             
             # Validate and sanitize input data
             if not payslip_data or not isinstance(payslip_data, list):
@@ -501,6 +610,8 @@ Always check and correct all calculations.
                 contract_data = {}
             
             print(f"Processing {len(payslip_data)} payslips, {len(attendance_data)} attendance records")
+            print(payslip_data)
+            print(attendance_data)
             
             # Import required components
             from engine.evaluator import RuleEvaluator
@@ -682,105 +793,116 @@ Always check and correct all calculations.
         """Format rule engine results without AI for specific analysis types"""
         
         if analysis_type == "violations_list":
-            if not violation_results:
-                return "לא נמצאו הפרות"
-            
-            violations_text = "## הפרות שזוהו\n\n"
-            for result in violation_results[:4]:  # Limit to 4 violations
-                rule_name = result.get('rule_name', 'הפרה לא מזוהה')
-                law_ref = result.get('law_reference', 'לא מוגדר')
-                violations_text += f"- **{rule_name}** - {law_ref}\n"
-            
-            return violations_text
+            output = ""
+            if violation_results:
+                output += "## הפרות שזוהו\n\n"
+                for result in violation_results[:4]:  # Limit to 4 violations
+                    rule_name = result.get('rule_name', 'הפרה לא מזוהה')
+                    law_ref = result.get('law_reference', 'לא מוגדר')
+                    output += f"- **{rule_name}** - {law_ref}\n"
+            if inconclusive_results:
+                output += "\n## בדיקות לא חד-משמעיות (חסרים נתונים)\n\n"
+                output += "החוקים הבאים לא חושבו בשל משתנים חסרים:\n"
+                for result in inconclusive_results:
+                    rule_name = result.get('rule_name', 'הפרה לא מזוהה')
+                    law_ref = result.get('law_reference', 'לא מוגדר')
+                    missing_fields = result.get('missing_fields', [])
+                    output += f"- **{rule_name}** ({law_ref}): חסרים משתנים: {', '.join(missing_fields)}\n"
+            if not violation_results and not inconclusive_results:
+                output += "לא נמצאו הפרות\n"
+            return output.strip()
         
         elif analysis_type == "easy":
-            if not violation_results:
-                return "לא נמצאו הפרות"
-            
-            easy_text = "# 📢 סיכום ההפרות\n\n"
-            total_amount = 0
-            
-            for result in violation_results:
-                emp_id = result['employee_id']
-                period = result['period']
-                rule_name = result.get('rule_name', 'הפרה')
-                # Use amount owed directly (penalties no longer used)
-                amount = result.get('total_amount_owed', 0)
-                
-                if amount >= 0:
-                    easy_text += f"- ❌ **{rule_name}** ב{period} - **{amount:,.0f} ₪**\n"
-                    total_amount += amount
-            
-            easy_text += f"\n## 💰 סה\"כ: {total_amount:,.0f} ₪\n\n"
-            easy_text += "## 📝 מה לעשות עכשיו\n\n"
-            easy_text += "1. פנה/י למעסיק עם דרישה לתשלום הסכומים\n"
-            easy_text += "2. אם אין מענה – מומלץ לפנות לייעוץ משפטי\n"
-            
-            return easy_text
+            output = "# 📢 סיכום ההפרות\n\n"
+            if violation_results:
+                total_amount = 0
+                for result in violation_results:
+                    emp_id = result['employee_id']
+                    period = result['period']
+                    rule_name = result.get('rule_name', 'הפרה')
+                    amount = result.get('total_amount_owed', 0)
+                    if amount >= 0:
+                        output += f"- ❌ **{rule_name}** ב{period} - **{amount:,.0f} ₪**\n"
+                        total_amount += amount
+                output += f"\n## 💰 סה\"כ: {total_amount:,.0f} ₪\n\n"
+                output += "## 📝 מה לעשות עכשיו\n\n"
+                output += "1. פנה/י למעסיק עם דרישה לתשלום הסכומים\n"
+                output += "2. אם אין מענה – מומלץ לפנות לייעוץ משפטי\n"
+            if inconclusive_results:
+                output += "\n## בדיקות לא חד-משמעיות\n\n"
+                output += "החוקים הבאים לא חושבו בשל משתנים חסרים:\n"
+                for result in inconclusive_results:
+                    rule_name = result.get('rule_name', 'הפרה')
+                    law_ref = result.get('law_reference', 'לא מוגדר')
+                    missing_fields = result.get('missing_fields', [])
+                    output += f"- **{rule_name}** ({law_ref}): חסרים משתנים: {', '.join(missing_fields)}\n"
+            if not violation_results and not inconclusive_results:
+                output += "לא נמצאו הפרות\n"
+            return output.strip()
         
         elif analysis_type == "table":
-            if not violation_results:
-                return "לא נמצאו הפרות לארגון בטבלה"
-            
-            table_text = "# טבלת הפרות\n\n"
-            # Group by employee and period
-            grouped = {}
-            for result in violation_results:
-                key = f"{result['employee_id']} - {result['period']}"
-                if key not in grouped:
-                    grouped[key] = []
-                grouped[key].append(result)
-            
-            for group_key, group_results in grouped.items():
-                table_text += f"## עובד {group_key}\n\n"
-                for i, result in enumerate(group_results, 1):
+            output = "# טבלת הפרות\n\n"
+            if violation_results:
+                grouped = {}
+                for result in violation_results:
+                    key = f"{result['employee_id']} - {result['period']}"
+                    if key not in grouped:
+                        grouped[key] = []
+                    grouped[key].append(result)
+                for group_key, group_results in grouped.items():
+                    output += f"## עובד {group_key}\n\n"
+                    for i, result in enumerate(group_results, 1):
+                        rule_name = result.get('rule_name', 'הפרה')
+                        amount = result.get('total_amount_owed', 0)
+                        hebrew_letter = chr(ord('א') + i - 1)
+                        output += f"{hebrew_letter}. סכום של **{amount:.2f} ש\"ח** עבור **{rule_name}**\n"
+                    output += "\n"
+            if inconclusive_results:
+                output += "## בדיקות לא חד-משמעיות\n\n"
+                output += "החוקים הבאים לא חושבו בשל משתנים חסרים:\n"
+                for result in inconclusive_results:
                     rule_name = result.get('rule_name', 'הפרה')
-                    # Combine underpaid amount and penalty
-                    amount = result.get('total_amount_owed', 0)
-                    hebrew_letter = chr(ord('א') + i - 1)  # Convert to Hebrew letters
-                    table_text += f"{hebrew_letter}. סכום של **{amount:.2f} ש\"ח** עבור **{rule_name}**\n"
-                table_text += "\n"
-            
-            return table_text
+                    law_ref = result.get('law_reference', 'לא מוגדר')
+                    missing_fields = result.get('missing_fields', [])
+                    output += f"- **{rule_name}** ({law_ref}): חסרים משתנים: {', '.join(missing_fields)}\n"
+            if not violation_results and not inconclusive_results:
+                output += "לא נמצאו הפרות לארגון בטבלה\n"
+            return output.strip()
         
         elif analysis_type == "violation_count_table":
-            if not violation_results:
-                return "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
-            
-            # Create summary table
-            table_text = "# טבלת סיכום מקיפה\n\n"
-            table_text += "| תלוש/מסמך | סוג הפרה | תקופה | סכום (₪) | מספר הפרות |\n"
-            table_text += "---|---|---|---|---\n"
-            
-            total_amount = 0
-            violation_counts = {}
-            
-            for result in violation_results:
-                emp_id = result['employee_id']
-                period = result['period']
-                rule_name = result.get('rule_name', 'הפרה')
-                # Combine underpaid amount and penalty
-                underpaid = result.get('total_amount_owed', 0)
-                amount = result.get('total_amount_owed', 0)
-                
-                table_text += f"עובד {emp_id} | {rule_name} | {period} | {amount:,.2f} | 1\n"
-                total_amount += amount
-                
-                # Count violations by type
-                if rule_name not in violation_counts:
-                    violation_counts[rule_name] = {'count': 0, 'amount': 0}
-                violation_counts[rule_name]['count'] += 1
-                violation_counts[rule_name]['amount'] += amount
-            
-            table_text += f"---|---|---|---|---\n"
-            table_text += f"סה\"כ | {len(violation_results)} הפרות | - | {total_amount:,.2f} | {len(violation_results)}\n\n"
-            
-            # Add breakdown by violation type
-            table_text += "פירוט לפי סוג הפרה:\n"
-            for vtype, vdata in violation_counts.items():
-                table_text += f"• {vtype}: {vdata['count']} הפרות, סה\"כ {vdata['amount']:,.2f} ₪\n"
-            
-            return table_text
+            output = "# טבלת סיכום מקיפה\n\n"
+            if violation_results:
+                output += "| תלוש/מסמך | סוג הפרה | תקופה | סכום (₪) | מספר הפרות |\n"
+                output += "---|---|---|---|---\n"
+                total_amount = 0
+                violation_counts = {}
+                for result in violation_results:
+                    emp_id = result['employee_id']
+                    period = result['period']
+                    rule_name = result.get('rule_name', 'הפרה')
+                    amount = result.get('total_amount_owed', 0)
+                    output += f"עובד {emp_id} | {rule_name} | {period} | {amount:,.2f} | 1\n"
+                    total_amount += amount
+                    if rule_name not in violation_counts:
+                        violation_counts[rule_name] = {'count': 0, 'amount': 0}
+                    violation_counts[rule_name]['count'] += 1
+                    violation_counts[rule_name]['amount'] += amount
+                output += f"---|---|---|---|---\n"
+                output += f"סה\"כ | {len(violation_results)} הפרות | - | {total_amount:,.2f} | {len(violation_results)}\n\n"
+                output += "פירוט לפי סוג הפרה:\n"
+                for vtype, vdata in violation_counts.items():
+                    output += f"• {vtype}: {vdata['count']} הפרות, סה\"כ {vdata['amount']:,.2f} ₪\n"
+            if inconclusive_results:
+                output += "\n## בדיקות לא חד-משמעיות\n\n"
+                output += "החוקים הבאים לא חושבו בשל משתנים חסרים:\n"
+                for result in inconclusive_results:
+                    rule_name = result.get('rule_name', 'הפרה')
+                    law_ref = result.get('law_reference', 'לא מוגדר')
+                    missing_fields = result.get('missing_fields', [])
+                    output += f"- **{rule_name}** ({law_ref}): חסרים משתנים: {', '.join(missing_fields)}\n"
+            if not violation_results and not inconclusive_results:
+                output += "לא נמצאו הפרות נגד חוקי העבודה שסופקו.\n"
+            return output.strip()
         
         else:
             # Default rule-based report format
@@ -909,6 +1031,11 @@ Always check and correct all calculations.
 בדיקות לא חד-משמעיות:
 {self._format_inconclusive_for_ai_prompt(inconclusive_results)}
 
+הנחיות נוספות:
+- אם אין הפרות אך יש בדיקות לא חד-משמעיות, ציין 'לא נמצאו הפרות עד כה, אך החוקים הבאים לא חושבו בשל משתנים חסרים:' ופרט את החוקים והשדות החסרים.
+- תמיד כלול את הבדיקות לא חד-משמעיות בדוח, גם אם יש הפרות.
+- השתמש בכותרות ברורות ובמרווחים מתאימים בין חלקי הדוח השונים.
+
 ---
 
 {instructions}
@@ -960,7 +1087,7 @@ Always check and correct all calculations.
 
         
 
-    async def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, str]:
+    async def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, Union[List[Dict], Dict]]:
         """Process uploaded documents and extract text concurrently"""
         if not files:
             raise HTTPException(
@@ -976,397 +1103,68 @@ Always check and correct all calculations.
 
         async def process_single(file, doc_type, idx):
             print(f"Processing file: {file.filename} as type: {doc_type}")
-            content = await file.read()
-            extracted_text = await asyncio.to_thread(self._extract_text2, content, file.filename, compress)
-            return (doc_type.lower(), idx, extracted_text)
+            # Properly read the file content from UploadFile
+            if hasattr(file, 'read'):
+                content = file.read()  # Try synchronous read first
+                if isinstance(content, bytes):
+                    pass  # Good, we got bytes
+                else:
+                    # If read() doesn't return bytes, try file.file.read()
+                    if hasattr(file, 'file'):
+                        content = file.file.read()
+                    else:
+                        raise ValueError(f"Cannot read content from file {file.filename}")
+            else:
+                raise ValueError(f"File object {file.filename} does not support reading")
+
+            print(f"Read {len(content)} bytes from {file.filename}")
+            # Call updated _extract_text2 with doc_type parameter
+            extracted_data = await asyncio.to_thread(self._extract_text2, content, file.filename, doc_type, compress)
+            return (doc_type.lower(), idx, extracted_data)
 
         tasks = [process_single(file, doc_type, idx+1) for idx, (file, doc_type) in enumerate(zip(files, doc_types))]
         results = await asyncio.gather(*tasks)
 
-        payslip_text = None
-        contract_text = None
-        attendance_text = None
+        # Initialize arrays for structured data
+        payslip_data = []
+        contract_data = []
+        attendance_data = []
         
         # Initialize separate counters for each document type
         payslip_counter = 0
         contract_counter = 0
         attendance_counter = 0
 
-        for doc_type, _, extracted_text in results:
+        for doc_type, _, extracted_data in results:
             if doc_type == "payslip":
                 payslip_counter += 1
-                payslip_text = f"Payslip {payslip_counter}:\n{extracted_text}" if payslip_text is None else f"{payslip_text}\n\nPayslip {payslip_counter}:\n{extracted_text}"
+                structured_payslip = extracted_data.get('structured_data', {})
+                # Ensure required fields for rule engine
+                structured_payslip['employee_id'] = structured_payslip.get('employee_id')
+                structured_payslip['month'] = structured_payslip.get('month')  # Default fallback
+                structured_payslip['document_number'] = payslip_counter
+                payslip_data.append(structured_payslip)
+                
             elif doc_type == "contract":
                 contract_counter += 1
-                contract_text = f"Contract {contract_counter}:\n{extracted_text}" if contract_text is None else f"{contract_text}\n\nContract {contract_counter}:\n{extracted_text}"
+                structured_contract = extracted_data.get('structured_data', {})
+                structured_contract['employee_id'] = structured_contract.get('employee_id')
+                structured_contract['document_number'] = contract_counter
+                contract_data.append(structured_contract)
+                
             elif doc_type == "attendance":
                 attendance_counter += 1
-                attendance_text = f"Attendance {attendance_counter}:\n{extracted_text}" if attendance_text is None else f"{attendance_text}\n\nAttendance {attendance_counter}:\n{extracted_text}"
+                structured_attendance = extracted_data.get('structured_data', {})
+                structured_attendance['employee_id'] = structured_attendance.get('employee_id')
+                structured_attendance['month'] = structured_attendance.get('month')  # Default fallback
+                structured_attendance['document_number'] = attendance_counter
+                attendance_data.append(structured_attendance)
 
-        # return {
-        #     "payslip_text": payslip_text,
-        #     "contract_text": contract_text,
-        #     "attendance_text": attendance_text
-        # }
-
+        # Return in the format expected by create_report_with_rule_engine
         return {
-            "payslip_text": """Payslip 1:
-1/21  תלוש משכורת <!-- marginalia, from page 0 (l=0.316,t=0.015,r=0.523,b=0.036), with ID 74a17059-921b-4df4-9428-8c85894e5ff3 -->
-
-ת.אילת השקעות וניהול פרויקטים בע"מ  
-ירושלים השלמה 35 אילת 88000  
-טל: 08-6333399 פקס: <!-- text, from page 0 (l=0.603,t=0.023,r=0.917,b=0.071), with ID 85aaa8d3-8d9f-4a3b-a27d-830afa295d06 -->
-
-95009327800
-950093278
-514256429
-
-תיק ג ב"ל
-תיק נכיינים
-תיק במי"ה <!-- text, from page 0 (l=0.028,t=0.032,r=0.196,b=0.070), with ID 8dc08c7a-06c0-44e9-9201-ea39407833b3 -->
-
-<table><tr><td>01/07/2018</td><td>תחילת עבודה:</td><td>בנק/סניף:</td><td>מס' עובד:260</td><td>בנאי אברהם</td></tr><tr><td>01/07/2018</td><td>תאריך ותק:</td><td>חשבון:</td><td>ת.ז: 05498201-2</td><td>312</td></tr><tr><td>2.59</td><td>שנות ותק:</td><td></td><td>מחלקה: 6-חברה ת.אילת</td><td>3</td></tr><tr><td>105.00 ש' עבודה: מתוך: 182.00</td><td></td><td></td><td></td><td>אילת</td></tr><tr><td>22.00 ימי עבודה: מתוך: 26.00</td><td></td><td>דרגה:</td><td></td><td>88000</td></tr><tr><td></td><td></td><td>דרוג:</td><td></td><td></td></tr><tr><td>תע' שנה: 35.00</td><td>היקף משרה: %</td><td></td><td>משרה: לפי שעות</td><td></td></tr></table> <!-- table, from page 0 (l=0.028,t=0.071,r=0.917,b=0.187), with ID b1862545-c7ea-4e2a-8389-93a90e5a96f4 -->
-
-<table><thead><tr><th>תיאור תשלום</th><th>כמות</th><th>תעריף</th><th>שווי למס</th><th>גילום</th><th>סכום לתשלום</th><th>ניכויים</th><th>סכום</th></tr></thead><tbody><tr><td>שכר יסוד</td><td></td><td>35.00</td><td></td><td></td><td>3,675.00</td><td>מס הכנסה שולי 14%</td><td>158.00</td></tr><tr><td>נסיעות</td><td></td><td>116.00</td><td></td><td></td><td>116.00</td><td>ביטוח לאומי</td><td></td></tr><tr><td>שעות נוספות 125%</td><td>15.00</td><td>43.75</td><td></td><td></td><td>656.25</td><td>מס בריאות</td><td>291.00</td></tr><tr><td>שעות נוספות 150%</td><td>72.00</td><td>52.50</td><td></td><td></td><td>3,780.00</td><td></td><td></td></tr><tr><td colspan="8"></td></tr><tr><td colspan="6"></td><td>ניכויי רשות</td><td>סכום</td></tr><tr><td colspan="6"></td><td>קניות</td><td>975.00</td></tr></tbody></table> <!-- table, from page 0 (l=0.040,t=0.186,r=0.913,b=0.515), with ID 56278ee9-521c-4fce-9268-c5a5572689ea -->
-
-הפקדות מעסיק לקופות גמל
-<table><thead><tr><th>שונות</th><th>א. כושר</th><th>פיצויים</th><th>תגמולים</th><th>שכר לגמל</th><th>שם הקופה</th></tr></thead><tbody><tr><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table> <!-- table, from page 0 (l=0.557,t=0.514,r=0.908,b=0.619), with ID 2c71ae73-f097-49f1-b41c-5fd3086271f8 -->
-
-הפקדות מעסיק לפיצויים
-<table><thead><tr><th>מצטבר</th><th>חודשי</th><th>הפקדות מעסיק לפיצויים</th></tr></thead><tbody><tr><td>0.00</td><td>0.00</td><td>משכורת מבוטחת</td></tr><tr><td>0.00</td><td>0.00</td><td>שווי פיצויים</td></tr><tr><td>0.00</td><td>0.00</td><td>פיצויים ללא שווי</td></tr><tr><td>0.00</td><td>0.00</td><td>הפקדה לקרן ותיקה</td></tr></tbody></table> <!-- table, from page 0 (l=0.287,t=0.514,r=0.552,b=0.618), with ID 28c58631-b7bb-4d69-8306-6902ca6e7727 -->
-
-<table><tr><td>8,227.25</td><td>סה"כ תשלומים</td></tr><tr><td>449.00</td><td>ניכויי חובה וגמל</td></tr><tr><td>7,778.25</td><td>שכר נטו</td></tr><tr><td>975.00</td><td>ס"ה ניכויי רשות</td></tr><tr><td>6,803.25</td><td>נטו לתשלום</td></tr></table> <!-- table, from page 0 (l=0.059,t=0.517,r=0.274,b=0.598), with ID 4fec36c3-121e-4a90-a141-1a6971be9a12 -->
-
-<table><thead><tr><th>מצטבר</th><th>חודשי</th><th>תשלומים שווי למס שווי גמל שווי ק"ה חייב מ"ה פטור מ"ה חייב ל"ל ערך ז"ז זיכוי נוסף זיכוי גמל ניכוי ס' 47 הנחת י"פ זיכוי משמרות פטור מיוחד</th></tr></thead><tbody><tr><td>8,227.00</td><td>8,227.25</td><td></td></tr><tr><td>8,227.00</td><td>8,227.25</td><td></td></tr><tr><td>8,227.25</td><td>8,227.25</td><td></td></tr><tr><td>490.50</td><td>490.50</td><td></td></tr><tr><td></td><td></td><td></td></tr><tr><td>823.00</td><td>822.73</td><td></td></tr></tbody></table> <!-- table, from page 0 (l=0.570,t=0.618,r=0.915,b=0.806), with ID 77e34e92-6ec5-432a-a413-fc7ed728b1cb -->
-
-<table><thead><tr><th>ניכוי"ם</th><th>מצטבר</th></tr></thead><tbody><tr><td>מס הכנסה<br>ביטוח לאומי<br>בריאות<br>גמל 25%<br>גמל 35%<br>ב. מנהלים<br>ק. השתלמות<br>סעיף 47<br>יתרת הלוואה</td><td>158.00<br>291.00</td></tr><tr><td colspan="2">מצב משפחתי גרוש/ה</td></tr><tr><td>נ"ז<br>% מס קבוע<br>% הנחת י"פ<br>תנאום מס</td><td>2.25<br><br>10.00</td></tr></tbody></table> <!-- table, from page 0 (l=0.378,t=0.619,r=0.570,b=0.804), with ID f8703e3f-12cc-4e02-b43f-16dba39e87d6 -->
-
-העדרויות
-<table><thead><tr><th>תאור</th><th>קודמת</th><th>תוספת</th><th>ניצול</th><th>יתרה</th></tr></thead><tbody><tr><td>חופשה</td><td>9.05</td><td>1.17</td><td></td><td>10.21</td></tr><tr><td>מחלה</td><td>45.00</td><td>1.50</td><td></td><td>46.50</td></tr><tr><td>מילואים</td><td></td><td></td><td></td><td></td></tr><tr><td>הבראה</td><td>3.00</td><td>0.50</td><td></td><td>3.50</td></tr></tbody></table> <!-- table, from page 0 (l=0.028,t=0.614,r=0.369,b=0.713), with ID ea54699f-1aac-45c9-b457-9ff792940d60 -->
-
-<table>
-  <tr>
-    <td>חודשי עבודה</td>
-    <td>חודשי עבודה</td>
-    <td>מספר חודשי עבודה מחודש</td>
-    <td>חישוב מצטבר מחודש</td>
-  </tr>
-  <tr>
-    <td>1</td>
-    <td>1__________</td>
-    <td>1</td>
-    <td>0</td>
-  </tr>
-</table> <!-- table, from page 0 (l=0.031,t=0.733,r=0.369,b=0.805), with ID 48f0fb4d-25cb-4418-9d10-146fc2e8c7cd -->
-
-הודעות:
-
-צורת תשלום:  במזומן/בהמחאה
-
-"למען מיצוי זכויותיך בביטוח הלאומי נא לוודא שפרטיך האישיים הרשומים בתלוש השכר זהים לפרטי תעודת הזהות."
-
-שכר מינימום לחודש: 5,300.00 שכר מינימום לשעה: 29.12
-
-חתימה <!-- text, from page 0 (l=0.031,t=0.804,r=0.913,b=0.935), with ID 551c6ee2-7100-4057-9f75-2c2516956ed0 -->
-
-תאריך הדפסה 06/02/21 <!-- marginalia, from page 0 (l=0.759,t=0.936,r=0.906,b=0.952), with ID ea681fd8-ce92-41d7-aefd-e1174821ff8e -->
-
-הופק ע"י: הכוכב שירותי הבה"ש באמצעות "מערכת טריו" של עוקץ מערכות בע"מ <!-- marginalia, from page 0 (l=0.073,t=0.933,r=0.533,b=0.949), with ID 02bce43d-8ecc-4aee-8d8a-e0ae721e05ab -->""",
-            "contract_text": "",
-            "attendance_text": """Attendance 1:
-יום ראשון  
-יום שני  
-יום שלישי  
-יום רביעי  
-יום חמישי  
-יום שישי  
-יום שבת  
-יום ראשון  
-יום שני  
-יום שלישי  
-יום רביעי  
-יום חמישי  
-יום שישי  
-יום שבת  
-יום ראשון  
-יום שני  
-יום שלישי  
-יום רביעי  
-יום חמישי  
-יום שישי  
-יום שבת  
-יום ראשון  
-יום שני  
-יום שלישי  
-יום רביעי  
-יום חמישי  
-יום שישי  
-יום שבת  
-יום ראשון  
-יום שני  
-יום שלישי  
-יום רביעי  
-יום חמישי  
-יום שישי  
-יום שבת  
-יום ראשון <!-- text, from page 0 (l=0.016,t=0.047,r=0.222,b=0.881), with ID 4eaefa70-ac65-41fe-ad9c-a9e1b4ba3f91 -->
-
-1/2021 <!-- text, from page 0 (l=0.374,t=0.000,r=0.549,b=0.050), with ID a1cfc528-03bb-4213-bc27-34be5acac584 -->
-
-21 <!-- text, from page 0 (l=0.667,t=0.004,r=0.733,b=0.042), with ID c14343a5-dc09-4766-8a14-9d8998a6f495 -->
-
-7k1 9l <!-- text, from page 0 (l=0.769,t=0.002,r=0.897,b=0.042), with ID 63f94d8f-8e42-41ac-b1dc-8dcf6aa61395 -->
-
-<table>
-  <tr>
-    <td>1/1</td>
-    <td>תפוחי עץ</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>2/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>3/1</td>
-    <td>חובב חובב חובב חובב</td>
-    <td>חובב</td>
-    <td>חובב</td>
-    <td>24°°</td>
-    <td>08°°</td>
-  </tr>
-  <tr>
-    <td>4/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>5/1</td>
-    <td>חובב חובב חובב חובב חובב</td>
-    <td>חובב</td>
-    <td>חובב</td>
-    <td>24°°</td>
-    <td>08°°</td>
-  </tr>
-  <tr>
-    <td>6/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>7/1</td>
-    <td>שזיף צהוב</td>
-    <td>49</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>8/1</td>
-    <td>שזיף צהוב</td>
-    <td>49</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>9/1</td>
-    <td>שזיף צהוב</td>
-    <td>49</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>10/1</td>
-    <td>חובב חובב חובב חובב</td>
-    <td>חובב</td>
-    <td>חובב</td>
-    <td>24°°</td>
-    <td>08°°</td>
-  </tr>
-  <tr>
-    <td>11/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>12/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>13/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>14/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>15/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>16/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>17/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>18/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>19/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>20/1</td>
-    <td>חובב חובב חובב חובב</td>
-    <td>חובב</td>
-    <td>חובב</td>
-    <td>24°°</td>
-    <td>08°°</td>
-  </tr>
-  <tr>
-    <td>21/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>22/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>23/1</td>
-    <td>חובב חובב חובב חובב חובב</td>
-    <td>חובב</td>
-    <td>חובב</td>
-    <td>24°°</td>
-    <td>08°°</td>
-  </tr>
-  <tr>
-    <td>24/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>25/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>26/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>27/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>28/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>29/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>30/1</td>
-    <td>חובב חובב חובב חובב</td>
-    <td>חובב</td>
-    <td>חובב</td>
-    <td>24°°</td>
-    <td>08°°</td>
-  </tr>
-  <tr>
-    <td>31/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>32/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-  <tr>
-    <td>33/1</td>
-    <td>חובב חובב חובב חובב חובב</td>
-    <td>חובב</td>
-    <td>חובב</td>
-    <td>24°°</td>
-    <td>08°°</td>
-  </tr>
-  <tr>
-    <td>34/1</td>
-    <td>שזיף צהוב</td>
-    <td>48</td>
-    <td>08°°</td>
-    <td>24°°</td>
-  </tr>
-</table> <!-- table, from page 0 (l=0.207,t=0.037,r=0.989,b=0.863), with ID 8fd127fd-d9d9-404b-92ac-aeccc59109e3 -->
-
-ס"הכ  שינויים  199  שעות  
-עלול  להשתנות  ולעבור  ניסיונות <!-- text, from page 0 (l=0.292,t=0.861,r=0.892,b=0.957), with ID 573d2f67-6344-4b0d-9198-7b23c02b38ef -->"""
+            "payslip_data": payslip_data,
+            "contract_data": contract_data[0] if contract_data else {},  # Single contract dict as expected
+            "attendance_data": attendance_data
         }
 
     async def _build_summary_prompt_from_combined(self, combined_report: str, analysis_type: str) -> str:
@@ -2122,115 +1920,283 @@ Formatting requirements:
 - If no violations are found, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
 """
 
-    def _extract_text2(self, content: bytes, filename: str, compress: bool = False) -> str:
-        """Extract text from various document formats using AgenticDoc for PDFs and images"""
-        print("Extracting text from file:", filename.lower())
-        
+    def _extract_text2(self, content: bytes, filename: str, doc_type: str = None, compress: bool = False) -> Dict:
+        """Extract structured data from various document formats using AgenticDoc for PDFs and images"""
+        print("Extracting structured data from file:", filename.lower(), "with doc_type:", doc_type)
+
         try:
+            # Load dynamic parameters for extraction schema
+            dynamic_params_path = os.path.join(os.path.dirname(__file__), 'data', 'dynamic_parameters.json')
+            with open(dynamic_params_path, 'r', encoding='utf-8') as f:
+                dynamic_params = json.load(f)
+
+            # Create extraction schema based on document type
+            extraction_model = None
+            if doc_type and doc_type.lower() in dynamic_params:
+                doc_params = dynamic_params[doc_type.lower()]
+
+                # Try creating a Pydantic model instead of schema
+                from pydantic import BaseModel, Field, create_model
+
+                # Create fields dict for dynamic model
+                fields = {}
+                for param in doc_params:
+                    fields[param["param"]] = (Optional[str], Field(default=None, description=param["description"]))
+
+                # Create dynamic model
+                extraction_model = create_model(f'{doc_type.title()}Model', **fields)
+            else:
+                print(f"No parameters found for doc_type: {doc_type} in dynamic_params keys: {list(dynamic_params.keys()) if dynamic_params else 'None'}")
+
             if filename.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg')):
-                # Pass bytes directly to AgenticDoc
-                print("Extracting text from image or PDF...")
-                
-                result = parse(content)
-                # Return markdown or structured, as you prefer
-                return result[0].markdown
-            elif filename.lower().endswith('.docx'):
-                doc_file = BytesIO(content)
-                doc = Document(doc_file)
-                return '\n'.join([p.text for p in doc.paragraphs])
-            elif filename.lower().endswith('.xlsx'):
+                # For PDF/images: Use extraction model with dynamic params to get structured data
+                print("Extracting structured data from image or PDF using extraction model...")
+
+                if extraction_model:
+                    try:
+                        print(f"Calling agentic_doc parse with extraction_model...")
+                        print(f"Model: {extraction_model}")
+                        result = parse(content, extraction_model=extraction_model)
+                        print(f"Parse result: {len(result)} documents")
+
+                        if result and len(result) > 0:
+                            print(f"First result has extraction: {hasattr(result[0], 'extraction')}")
+                            if hasattr(result[0], 'extraction'):
+                                print(f"Extraction data type: {type(result[0].extraction)}")
+                                print(f"Extraction data: {result[0].extraction}")
+
+                        # Extract structured data using the model
+                        extracted_data = result[0].extraction if (result and hasattr(result[0], 'extraction') and result[0].extraction) else {}
+                        print(f"Final extracted data: {extracted_data}")
+
+                        # Convert Pydantic model to dict if needed
+                        if hasattr(extracted_data, 'model_dump'):
+                            extracted_data = extracted_data.model_dump()
+                        elif hasattr(extracted_data, 'dict'):
+                            extracted_data = extracted_data.dict()
+
+
+                        return {
+                            'structured_data': extracted_data  # Only return structured data
+                        }
+
+                    except Exception as e:
+                        print(f"Extraction model failed: {e}")
+                        # Return empty structured data when extraction fails
+                        return {
+                            'structured_data': {}
+                        }
+                else:
+                    # No extraction model available
+                    print(f"No extraction model available for {doc_type}")
+                    return {
+                        'structured_data': {}
+                    }
+
+            elif filename.lower().endswith('.xlsx') and doc_type == 'attendance':
+                # Special handling for attendance Excel files
+                print("Processing attendance Excel file with date, check-in, and departure time columns...")
                 excel_file = BytesIO(content)
                 df = pd.read_excel(excel_file, sheet_name=None)
-                text = ""
-                for sheet, data in df.items():
-                    text += f"## Sheet: {sheet}\n"
-                    # Convert DataFrame to Markdown table
-                    text += data.to_markdown(index=False) + "\n\n"
-                return text
+
+                if df:
+                    first_sheet = next(iter(df.values()))
+                    print(f"Processing attendance Excel sheet with {len(first_sheet)} rows")
+                    print(f"Columns found: {list(first_sheet.columns)}")
+
+                    # Calculate attendance parameters from date, check-in, and departure times
+                    attendance_data = self._extract_attendance_from_excel(first_sheet)
+
+                    return {
+                        'structured_data': attendance_data
+                    }
+                else:
+                    return {
+                        'structured_data': {}
+                    }
             else:
-                # Unknown file type, treat as plain text
-                result = parse(content)      
-                print(f"Extracting text :{result}")
-                # Return markdown or structured, as you prefer
-                return result[0].markdown
+                # Unknown file type: Try extraction model first, fallback to OCR
+                print(f"Unknown file type, trying extraction model...")
+
+                if extraction_model:
+                    try:
+                        result = parse(content, extraction_model=extraction_model)
+
+                        if result and hasattr(result[0], 'extraction') and result[0].extraction:
+                            extracted_data = result[0].extraction
+
+                            # Convert Pydantic model to dict if needed
+                            if hasattr(extracted_data, 'model_dump'):
+                                extracted_data = extracted_data.model_dump()
+                            elif hasattr(extracted_data, 'dict'):
+                                extracted_data = extracted_data.dict()
+
+
+                            return {
+                                'structured_data': extracted_data
+                            }
+                    except Exception as e:
+                        print(f"Extraction model failed for unknown type: {e}")
+
+                # Fallback to empty data
+                return {
+                    'structured_data': {}
+                }
+
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Extraction error: {get_error_detail(e)}")
+            print(f"Extraction error: {e}")
+            # Fallback - return empty data
+            return {
+                'structured_data': {}
+            }
 
-    def _extract_text_legacy(self, content: bytes, filename: str, compress: bool = False) -> str:
-        """Legacy text extraction method (kept for fallback)"""
-        if filename.lower().endswith('.pdf'):
-            return self._extract_pdf_text(content)
-        elif filename.lower().endswith('.docx'):
-            return self._extract_docx_text(content)
-        elif filename.lower().endswith('.xlsx'):
-            return self._extract_excel_text(content)
-        else:
-            return self._extract_image_text(content, compress)
+    def _extract_attendance_from_excel(self, df) -> Dict:
+        """Calculate attendance parameters from Excel with date, check-in, and departure time columns"""
+        import pandas as pd
+        from datetime import datetime, timedelta
 
-    def _extract_pdf_text(self, content: bytes) -> str:
-        """Extract text from PDF using pdfplumber and Vision API"""
+        attendance_data = {}
+
+        if df.empty:
+            print("Empty DataFrame provided for attendance calculation")
+            return attendance_data
+
+        print(f"Processing attendance DataFrame with {len(df)} rows")
+        print(f"Columns: {list(df.columns)}")
+
+        # Find the relevant columns (case-insensitive search for English and Hebrew)
+        date_col = None
+        checkin_col = None
+        departure_col = None
+
+        for col in df.columns:
+            col_str = str(col).strip()
+            col_lower = col_str.lower()
+            # English column names
+            if 'date' in col_lower:
+                date_col = col
+            elif 'check' in col_lower and 'in' in col_lower:
+                checkin_col = col
+            elif 'departure' in col_lower or 'depart' in col_lower or 'out' in col_lower:
+                departure_col = col
+            # Hebrew column names - direct string matching
+            elif 'תאריך' in col_str:
+                date_col = col
+            elif 'כניסה' in col_str or 'הגעה' in col_str:
+                checkin_col = col
+            elif 'יציאה' in col_str or 'עזיבה' in col_str:
+                departure_col = col
+
+        print(f"Identified columns - Date: {date_col}, Check-in: {checkin_col}, Departure: {departure_col}")
+
+        if not all([date_col, checkin_col, departure_col]):
+            print("Missing required columns for attendance calculation")
+            return attendance_data
+
+        # Clean and process the data
+        df_clean = df.dropna(subset=[date_col, checkin_col, departure_col]).copy()
+        print(f"After cleaning: {len(df_clean)} valid rows")
+
+        if df_clean.empty:
+            print("No valid rows after cleaning")
+            return attendance_data
+
+        # Calculate days_worked (unique dates)
         try:
-            pdf_file = BytesIO(content)
-            text = ''
-            with pdfplumber.open(pdf_file) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text and page_text.strip():
-                        text += page_text + "\n"
-                    else:
-                        # Convert PDF page to image and use Vision API
-                        img = page.to_image(resolution=300).original
-                        img_byte_arr = io.BytesIO()
-                        img.save(img_byte_arr, format='PNG')
-                        img_content = img_byte_arr.getvalue()
-                        
-                        vision_image = vision.Image(content=img_content)
-                        response = self.vision_client.text_detection(image=vision_image, image_context=self.image_context)
-                        if response.text_annotations:
-                            text_list = [text_annotation.description for text_annotation in response.text_annotations]
-                            text += " ".join(text_list) + "\n"
-            return text
+            # Convert date column to datetime
+            df_clean[date_col] = pd.to_datetime(df_clean[date_col], errors='coerce')
+            valid_dates = df_clean[date_col].dropna()
+            if not valid_dates.empty:
+                days_worked = len(valid_dates.unique())
+                attendance_data['days_worked'] = str(days_worked)
+                print(f"Calculated days_worked: {days_worked}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing PDF: {get_error_detail(e)}")
+            print(f"Error calculating days_worked: {e}")
 
-    def _extract_docx_text(self, content: bytes) -> str:
-        """Extract text from DOCX files"""
-        doc_file = BytesIO(content)
-        doc = Document(doc_file)
-        return '\n'.join([paragraph.text for paragraph in doc.paragraphs])
-
-    def _extract_excel_text(self, content: bytes) -> str:
-        """Extract text from Excel files"""
+        # Calculate month from dates
         try:
-            excel_file = BytesIO(content)
-            df = pd.read_excel(excel_file, sheet_name=None)  # Load all sheets
-            
-            text = ""
-            for sheet_name, sheet_data in df.items():
-                text += f"Sheet: {sheet_name}\n"
-                text += sheet_data.to_string(index=False) + "\n\n"
-            return text
+            if not valid_dates.empty:
+                # Get the most common month from the dates
+                months = valid_dates.dt.strftime('%Y-%m')
+                if not months.empty:
+                    most_common_month = months.mode().iloc[0]
+                    attendance_data['month'] = most_common_month
+                    print(f"Calculated month: {most_common_month}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing Excel file: {get_error_detail(e)}")
+            print(f"Error calculating month: {e}")
 
-    def _extract_image_text(self, content: bytes, compress: bool = False) -> str:
-        """Extract text from images using Vision API"""
+        # Calculate total_hours from check-in and departure times
         try:
-            if compress:
-                content = self._compress_image(content)
-            
-            vision_image = vision.Image(content=content)
-            response = self.vision_client.document_text_detection(image=vision_image, image_context=self.image_context)
-            
-            if response.error.message:
-                raise HTTPException(status_code=500, detail=f"Vision API Error: {response.error.message}")
-            
-            if response.text_annotations:
-                return " ".join([text_annotation.description for text_annotation in response.text_annotations])
-            else:
-                return ""
+            total_hours = 0.0
+            valid_rows_count = 0
+
+            for idx, row in df_clean.iterrows():
+                try:
+                    checkin_time = row[checkin_col]
+                    departure_time = row[departure_col]
+
+                    # Handle different time formats
+                    if pd.isna(checkin_time) or pd.isna(departure_time):
+                        continue
+
+                    # Convert to datetime if they're not already
+                    if not isinstance(checkin_time, datetime):
+                        if isinstance(checkin_time, str):
+                            # Try different time formats
+                            for fmt in ['%H:%M:%S', '%H:%M', '%I:%M %p', '%I:%M:%S %p']:
+                                try:
+                                    checkin_time = datetime.strptime(checkin_time, fmt).time()
+                                    break
+                                except:
+                                    continue
+                        elif hasattr(checkin_time, 'hour'):  # Already a time object
+                            pass
+                        else:
+                            continue
+
+                    if not isinstance(departure_time, datetime):
+                        if isinstance(departure_time, str):
+                            # Try different time formats
+                            for fmt in ['%H:%M:%S', '%H:%M', '%I:%M %p', '%I:%M:%S %p']:
+                                try:
+                                    departure_time = datetime.strptime(departure_time, fmt).time()
+                                    break
+                                except:
+                                    continue
+                        elif hasattr(departure_time, 'hour'):  # Already a time object
+                            pass
+                        else:
+                            continue
+
+                    # Calculate hours worked for this day
+                    if hasattr(checkin_time, 'hour') and hasattr(departure_time, 'hour'):
+                        # Create datetime objects for today to calculate difference
+                        today = datetime.now().date()
+                        checkin_dt = datetime.combine(today, checkin_time)
+                        departure_dt = datetime.combine(today, departure_time)
+
+                        # Handle overnight shifts (departure next day)
+                        if departure_dt < checkin_dt:
+                            departure_dt += timedelta(days=1)
+
+                        hours_worked = (departure_dt - checkin_dt).total_seconds() / 3600
+                        total_hours += hours_worked
+                        valid_rows_count += 1
+                        print(f"Row {idx}: Check-in {checkin_time}, Departure {departure_time}, Hours: {hours_worked:.2f}")
+
+                except Exception as e:
+                    print(f"Error processing row {idx}: {e}")
+                    continue
+
+            if valid_rows_count > 0:
+                attendance_data['total_hours'] = str(round(total_hours, 2))
+                print(f"Calculated total_hours: {total_hours:.2f}")
+
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing image: {get_error_detail(e)}")
+            print(f"Error calculating total_hours: {e}")
+
+        print(f"Final attendance data: {attendance_data}")
+        return attendance_data
 
     def _compress_image(self, image_bytes: bytes, max_size_mb: int = 4) -> bytes:
         """Compress image to reduce size for API limits"""
