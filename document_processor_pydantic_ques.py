@@ -14,7 +14,6 @@ from PIL import Image
 import os
 import json
 from dotenv import load_dotenv
-import pdfplumber
 from io import BytesIO
 from typing import List, Dict, Union, Optional, Any
 from docx import Document
