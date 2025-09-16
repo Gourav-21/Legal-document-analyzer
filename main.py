@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from database import Base, engine
 from routers import auth_router
@@ -38,37 +38,37 @@ app.include_router(
     labor_law_router,
     prefix="/api",
     tags=["labor_laws"],
-    # dependencies=[d(get_current_user)]
+    dependencies=[Depends(get_current_user)]
 )
 app.include_router(
     document_router,
     prefix="/api",
     tags=["documents"],
-    # dependencies=[d(get_current_user)]
+    dependencies=[Depends(get_current_user)]
 )
 app.include_router(
     letter_format_router,
     prefix="/api",
     tags=["letter_formats"],
-    # dependencies=[d(get_current_user)]
+    dependencies=[Depends(get_current_user)]
 )
 app.include_router(
     judgement_router,
     prefix="/api",
     tags=["judgements"],
-    # dependencies=[d(get_current_user)]
+    dependencies=[Depends(get_current_user)]
 )
 app.include_router(
     analysis_router,
     prefix="/api",
     tags=["analysis"],
-    # dependencies=[d(get_current_user)]
+    dependencies=[Depends(get_current_user)]
 )
 app.include_router(
     params_router,
     prefix="/api",
     tags=["parameters"],
-    # dependencies=[d(get_current_user)]
+    dependencies=[Depends(get_current_user)]
 )
 
 @app.get("/")

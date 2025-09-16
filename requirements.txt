@@ -25,3 +25,4 @@ google-generativeai
 google-cloud-vision
 pypdf
 psycopg2-binary
+openpyxl

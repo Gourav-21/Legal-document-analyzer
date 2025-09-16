@@ -95,8 +95,33 @@ class RuleEvaluator:
 
     @staticmethod
     def evaluate_checks(checks: List[Dict[str, Any]], context: Dict[str, Any]) -> tuple:
+        # Normalize context values (coerce numeric-like strings to numbers)
+        def _coerce_value(v):
+            # Convert numeric strings to int/float, leave others unchanged
+            if isinstance(v, str):
+                v_str = v.strip()
+                # Try int
+                try:
+                    if v_str.isdigit() or (v_str.startswith('-') and v_str[1:].isdigit()):
+                        return int(v_str)
+                except Exception:
+                    pass
+                # Try float
+                try:
+                    return float(v_str)
+                except Exception:
+                    return v
+            elif isinstance(v, dict):
+                return {k: _coerce_value(val) for k, val in v.items()}
+            elif isinstance(v, list):
+                return [_coerce_value(item) for item in v]
+            else:
+                return v
+
+        normalized_context = {k: _coerce_value(v) for k, v in context.items()}
+
         # Wrap nested dicts for dot-access
-        context = DotDict(context)
+        context = DotDict(normalized_context)
         allowed_functions = {"min": min, "max": max, "abs": abs, "round": round}
         results = []
         named_results = {}
