@@ -7,7 +7,7 @@ from routers import auth_router
 from routers.labor_law_api import router as labor_law_router
 from routers.document_api import router as document_router
 from routers.letter_format_api import router as letter_format_router
-from routers.judgement_api import router as judgement_router
+# from routers.judgement_api import router as judgement_router
 from routers.analysis_router import router as analysis_router
 from routers.params_api import router as params_router
 from auth import get_current_user
@@ -52,12 +52,12 @@ app.include_router(
     tags=["letter_formats"],
     dependencies=[Depends(get_current_user)]
 )
-app.include_router(
-    judgement_router,
-    prefix="/api",
-    tags=["judgements"],
-    dependencies=[Depends(get_current_user)]
-)
+# app.include_router(
+#     judgement_router,
+#     prefix="/api",
+#     tags=["judgements"],
+#     dependencies=[Depends(get_current_user)]
+# )
 app.include_router(
     analysis_router,
     prefix="/api",

@@ -29,11 +29,10 @@
     },
     {
       "rule_id": "minimum_wage",
-      "name": "Minimum Wage",
+      "name": "minimum Wage",
       "law_reference": "Section 1",
       "description": "Base hourly rate must be >= 32.7 NIS",
       "effective_from": "2024-01-01",
-      "effective_to": null,
       "checks": [
         {
           "id": "min_wage_check",
@@ -43,7 +42,7 @@
         }
       ],
       "created_date": "2024-01-01T00:00:00Z",
-      "updated_date": "2025-08-27T00:00:00Z"
+      "updated_date": "2025-09-22T10:10:07.266Z"
     }
   ]
 }

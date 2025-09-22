@@ -1,13 +1,3 @@
-import sqlite_fix  # This must be imported first
-
-# Apply SQLite3 fix before any other imports that might use ChromaDB
-import sys
-try:
-    import pysqlite3
-    sys.modules['sqlite3'] = pysqlite3
-    print("✅ SQLite3 fix applied in document_processor")
-except ImportError:
-    print("⚠️ pysqlite3-binary not available in document_processor")
 
 from fastapi import UploadFile, HTTPException
 from PIL import Image
@@ -17,13 +7,9 @@ from dotenv import load_dotenv
 from io import BytesIO
 from typing import List, Dict, Union, Optional, Any
 from docx import Document
-from google.cloud import vision
 import io
-from google.cloud.vision import ImageAnnotatorClient
 import pandas as pd
 from letter_format import LetterFormatStorage
-from rag_storage import RAGLegalStorage
-# from rag_storage_local import RAGLegalStorage
 from pydantic_ai import Agent
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
@@ -31,7 +17,6 @@ from pydantic_ai.settings import ModelSettings
 from pydantic import BaseModel
 import asyncio
 from agentic_doc.parse import parse
-from evaluator_optimizer import EvaluatorOptimizer
 # nest_asyncio imported conditionally inside __init__ to avoid uvloop conflicts
 # Load environment variables from .env 
 load_dotenv()
@@ -79,6 +64,115 @@ def get_error_detail(e):
 
 
 class DocumentProcessor:
+
+    def _is_streamlit(self) -> bool:
+        """Check if the code is running in a Streamlit environment."""
+        try:
+            import streamlit as st
+            return hasattr(st, 'runtime') and st.runtime.exists()
+        except (ImportError, AttributeError):
+            return False
+ 
+    def __init__(self):
+        self.letter_format = LetterFormatStorage()
+        
+        # Initialize PydanticAI model - use Google Gemini
+        gemini_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
+        # openai_api_key = os.getenv("OPENAI_API_KEY")
+        # Use ModelSettings to set temperature to 0.0 (deterministic output)
+        model_settings = ModelSettings(temperature=0.0)
+        # if openai_api_key:
+            # try:
+            #     import openai
+            #     openai.api_key = openai_api_key
+            #     self.model_type = "gpt-5"
+            #     self.model = "gpt-5"  # Use process_with_gpt5 for calls
+            # except ImportError:
+            #     print("⚠️ openai package not installed. GPT-5 support unavailable.")
+        if gemini_api_key:
+            # Create Google provider with API key
+            google_provider = GoogleProvider(api_key=gemini_api_key)
+            self.model = GoogleModel('gemini-2.5-pro', provider=google_provider, settings=model_settings)
+            self.flashmodel = GoogleModel('gemini-2.5-flash', provider=google_provider, settings=model_settings)
+            self.model_type = "gemini"
+        else:
+            raise Exception("GOOGLE_API_KEY or GOOGLE_CLOUD_VISION_API_KEY must be set in environment variables")
+        # # Initialize PydanticAI Agent
+        # # Configure Vision API
+        # vision_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
+        # if not vision_api_key:
+        #     raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_API_KEY in your .env file")
+        
+        # self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
+        # self.image_context = {"language_hints": ["he"]} 
+        # Only apply nest_asyncio if not running under uvloop (e.g., not under uvicorn)
+        _can_patch = True
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if 'uvloop' in str(type(loop)):
+                _can_patch = False
+        except Exception:
+            pass
+        if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
+            import nest_asyncio
+            nest_asyncio.apply()
+        self.agent = Agent(
+            model=self.model,
+            output_type=str,
+            system_prompt="""You are an expert legal document analyzer specializing in Israeli labor law compliance.
+
+You will be provided with:
+1. Relevant labor laws retrieved from a legal database
+2. Relevant legal judgements and precedents retrieved from a legal database  
+3. Document content to analyze (payslips, contracts, attendance records)
+4. Additional context if provided
+
+Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
+
+🚫 VERY IMPORTANT:
+- Read the document carefully and remember its contents like wage per hour, working hours, etc. and Do not recalculate data like wages per hour, sick days, etc. unless the document provides exact values.
+- Do not infer or estimate violations without clear proof in the payslip.
+- Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
+- Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
+- Do not hallucinate sick days, overtime hours, or absences
+- think step by step and analyze the documents carefully. do not rush to conclusions.
+- while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
+
+Always respond in Hebrew and follow the specific formatting requirements for each analysis type.
+
+CRITICAL: When providing analysis, do NOT output template text or placeholders. Always replace ALL placeholders with real data from the analysis.""",
+        )
+
+        # Initialize Hebrew content extraction agent
+        self.hebrew_agent = Agent(
+            model=self.flashmodel,
+            output_type=str,
+            system_prompt="""You are an expert at extracting structured data from Hebrew text documents, particularly legal and administrative documents.
+
+Your task is to extract specific fields from provided Hebrew text content. You must:
+- Carefully read the text and identify values for the requested fields.
+- Return only valid JSON with the exact field names as keys.
+- If a field is not found, set its value to null.
+- Do not add extra text or explanations - only the JSON object.
+- Be precise and accurate in extracting values, especially for Hebrew text with special characters.""",
+        )
+
+        # Initialize Rule Engine components
+        try:
+            from engine.loader import RuleLoader
+            from engine.evaluator import RuleEvaluator
+            
+            self.rule_loader = RuleLoader
+            self.rule_evaluator = RuleEvaluator
+            self.rules_data = None  # Will be loaded when needed
+            print("✅ Rule Engine classes initialized successfully")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize Rule Engine: {e}")
+            self.rule_loader = None
+            self.rule_evaluator = None
+            self.rules_data = None
+        
     async def export_to_excel(self, processed_result: dict) -> bytes:
         """
         Process the processed_result, use AI agent to extract employee name, overtime hours, salary, and all relevant data, and generate an Excel file for download.
@@ -200,218 +294,6 @@ class DocumentProcessor:
         output.seek(0)
         return output.read()
     
-    def _is_streamlit(self) -> bool:
-        """Check if the code is running in a Streamlit environment."""
-        try:
-            import streamlit as st
-            # Check if we're actually in a Streamlit runtime, not just if streamlit is installed
-            return hasattr(st, 'runtime') and st.runtime.exists()
-        except (ImportError, AttributeError):
-            return False
-
-    def qna_sync(self, report: str, questions: str) -> str:
-        """Synchronous wrapper for the async qna method."""
-        import asyncio
-        try:
-            return asyncio.run(self.qna(report, questions))
-        except RuntimeError as e:
-            # If there's already a running event loop (e.g. in Streamlit), use alternative
-            if self._is_streamlit():
-                try:
-                    import nest_asyncio
-                    nest_asyncio.apply()
-                    loop = asyncio.get_event_loop()
-                    return loop.run_until_complete(self.qna(report, questions))
-                except Exception as inner_e:
-                    raise RuntimeError(f"Failed to run qna async in Streamlit: {inner_e}") from e
-            else:
-                # In uvicorn/FastAPI, this shouldn't happen since we should use the async method directly
-                raise RuntimeError(f"Cannot run async method in sync context. Use the async qna method instead: {e}") from e
-            
-    def __init__(self):
-        # Initialize RAG storage
-        # self.rag_storage = RAGLegalStorage()
-        
-        # Initialize backward compatibility storages
-        # self.letter_format = LetterFormatStorage()
-        # self.law_storage = LaborLawStorage()
-        # self.judgement_storage = JudgementStorage()
-        # self.law_storage = self.rag_storage
-        # self.judgement_storage = self.rag_storage
-        
-        # Initialize PydanticAI model - use Google Gemini
-        gemini_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
-        # openai_api_key = os.getenv("OPENAI_API_KEY")
-        # Use ModelSettings to set temperature to 0.0 (deterministic output)
-        model_settings = ModelSettings(temperature=0.0)
-        # if openai_api_key:
-            # try:
-            #     import openai
-            #     openai.api_key = openai_api_key
-            #     self.model_type = "gpt-5"
-            #     self.model = "gpt-5"  # Use process_with_gpt5 for calls
-            # except ImportError:
-            #     print("⚠️ openai package not installed. GPT-5 support unavailable.")
-        if gemini_api_key:
-            # Create Google provider with API key
-            google_provider = GoogleProvider(api_key=gemini_api_key)
-            self.model = GoogleModel('gemini-2.5-pro', provider=google_provider, settings=model_settings)
-            self.model_type = "gemini"
-        else:
-            raise Exception("GOOGLE_API_KEY or GOOGLE_CLOUD_VISION_API_KEY must be set in environment variables")
-        # Initialize PydanticAI Agent
-        # Configure Vision API
-        vision_api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY")
-        if not vision_api_key:
-            raise Exception("Google Cloud Vision API key not found. Please set GOOGLE_CLOUD_VISION_API_KEY in your .env file")
-        
-        self.vision_client = ImageAnnotatorClient(client_options={"api_key": vision_api_key})
-        self.image_context = {"language_hints": ["he"]} 
-        # Only apply nest_asyncio if not running under uvloop (e.g., not under uvicorn)
-        _can_patch = True
-        try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if 'uvloop' in str(type(loop)):
-                _can_patch = False
-        except Exception:
-            pass
-        if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
-            import nest_asyncio
-            nest_asyncio.apply()
-        self.agent = Agent(
-            model=self.model,
-            output_type=str,
-            system_prompt="""You are an expert legal document analyzer specializing in Israeli labor law compliance.
-
-You will be provided with:
-1. Relevant labor laws retrieved from a legal database
-2. Relevant legal judgements and precedents retrieved from a legal database  
-3. Document content to analyze (payslips, contracts, attendance records)
-4. Additional context if provided
-
-Your analysis must be based STRICTLY on the provided laws and judgements. Do not use external legal knowledge.
-
-🚫 VERY IMPORTANT:
-- Read the document carefully and remember its contents like wage per hour, working hours, etc. and Do not recalculate data like wages per hour, sick days, etc. unless the document provides exact values.
-- Do not infer or estimate violations without clear proof in the payslip.
-- Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
-- Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
-- Do not hallucinate sick days, overtime hours, or absences
-- think step by step and analyze the documents carefully. do not rush to conclusions.
-- while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
-
-Always respond in Hebrew and follow the specific formatting requirements for each analysis type.
-
-CRITICAL: When providing analysis, do NOT output template text or placeholders. Always replace ALL placeholders with real data from the analysis.""",
-        )
-
-        # Only apply nest_asyncio for question_agent if not running under uvloop
-        if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
-            import nest_asyncio
-            nest_asyncio.apply()
-        self.question_agent = Agent(
-            model=self.model,
-            output_type=List[str],
-            system_prompt="""You are an expert legal document analyzer specializing in Israeli labor law compliance.
-                            Your task is to analyze document content and generate specific search queries to find relevant and most applicable laws and judgements.
-                            break those questions into sub-questions that can be used to search for laws and judgements in the database.
-                            Return a list of 3-5 specific search queries that focus on the key legal concepts present in the documents.
-            """
-        )
-
-        @self.question_agent.system_prompt
-        def dynamic_system_prompt():
-            """Dynamic system prompt for question agent"""
-            # Get all law summaries from RAG storage
-            law_summaries = self.rag_storage.get_all_law_summaries()
-            if law_summaries:
-                print(f"Found {len(law_summaries)} law summaries in the database.")
-                summaries_text = "\n".join([f"- {summary}" for summary in law_summaries])
-                return f"""
-Here is a list of summaries of laws available in the database that you can search for:
-
-{summaries_text}
-
-Based on the document content provided, generate 3-5 specific search queries that will help find the most relevant laws and judgements. Focus on key legal concepts like:
-- Salary and wage-related issues
-- Working hours and overtime
-- Pension and social benefits
-- Employment contracts and termination
-- Worker rights violations
-
-Return only the search queries as a list of strings.
-"""
-            else:
-                print("no law summaries found in the database.")
-                return """
-You are an expert legal document analyzer specializing in Israeli labor law compliance.
-
-No law summaries are currently available in the database. Analyze the document content and generate 3-5 specific search queries based on the general legal concepts present. Focus on key areas like wages, working hours, benefits, contracts, and worker rights.
-
-Return only the search queries as a list of strings.
-"""
-
-        # --- Review Agent ---
-        if _can_patch and os.environ.get("USE_NEST_ASYNCIO", "0") == "1":
-            import nest_asyncio
-            nest_asyncio.apply()
-        self.review_agent = Agent(
-            model=self.model,
-            output_type=str,
-            system_prompt="""
-You are a legal analysis review agent specializing in Israeli labor law.
-You are given:
-1. A set of relevant labor laws (as text)
-2. A set of relevant legal judgements (as text)
-3. An analysis of a legal case (as text)
-4. A set of relevant employee documents (as text)
-5. Additional context or information (as text)
-Your job is to:
-  - Carefully check if the analysis is correct, complete, and strictly based on the provided laws and judgements.
-  - Carefully check the documents and laws and judgements and see if the analysis is missing any important legal points or if it contains any errors or is missing any violation.
-  - Carefully check if the analysis is based only on the provided laws and judgements and documents and not assuming any external knowledge or making up facts.
-  - You must also carefully check that all calculations (amounts, sums, percentages, totals, etc.) are correct and match the provided laws, judgements, and document data. If you find any calculation errors, you must correct them and explain the correction.
-  - If the analysis is correct, return it as-is.
-  - If the analysis is incorrect, incomplete, or not strictly based on the provided laws and judgements, or if any calculation is wrong, generate a corrected analysis that is fully compliant and mathematically accurate.
-  
-  🚫 VERY IMPORTANT:
-- Do not recalculate data like wages per hour, overtime hours, sick days, etc. unless the document provides exact values.
-- Do not infer or estimate violations without clear proof in the payslip.
-- Use **only** the documents provided (e.g., payslip data, employment contracts data, and attendance records data). **Do not extract or reuse any example values (e.g., 6000 ₪, 186 hours, 14 hours overtime) that appear in the legal texts or examples.**
-- Do **not invent** missing data. If the document does not include sufficient detail for a violation (e.g., no overtime hours), **do not report a violation**.
-- Do not hallucinate sick days, overtime hours, or absences
-- think step by step and analyze the documents carefully. do not rush to conclusions.
-- while calculating read the whole law and dont miss anything and explain the calculations step by step and how you arrived at the final amounts.
-
-Always respond in Hebrew.
-Do not use any external knowledge or make up facts.
-Always cite the provided laws and judgements in your corrections.
-Always check and correct all calculations.
-"""
-        )
-
-       
-            
-        # Initialize Rule Engine components
-        try:
-            from engine.loader import RuleLoader
-            from engine.evaluator import RuleEvaluator
-            
-            self.rule_loader = RuleLoader
-            self.rule_evaluator = RuleEvaluator
-            
-            # Load rules from the rules file
-            rules_path = os.path.join(os.path.dirname(__file__), 'rules/labor_law_rules.json')
-            self.rules_data = self.rule_loader.load_rules(rules_path)
-            print("✅ Rule Engine initialized successfully")
-        except Exception as e:
-            print(f"⚠️ Failed to initialize Rule Engine: {e}")
-            self.rule_loader = None
-            self.rule_evaluator = None
-            self.rules_data = None
-        
-
     async def generate_ai_rule_checks(self, rule_description: str) -> List[Dict]:
         """
         Generate AI-powered rule checks based on description using dynamic parameters and available functions from engine
@@ -519,60 +401,6 @@ Always check and correct all calculations.
             # If all parsing fails, raise an exception
             raise ValueError(f"Failed to parse AI response as JSON array: {response_text}")
 
-    async def review_analysis(self, laws: str, judgements: str, analysis: str, documents: Dict[str, str], context: str) -> str:
-        """
-        Review the analysis against the provided laws and judgements. If correct, return as-is. If not, return a corrected analysis.
-        Also, carefully check all calculations (amounts, sums, percentages, totals, etc.) and correct any errors found.
-        The output must never mention that it was revised, never explain what was fixed, and must simply return the corrected analysis as if it was always correct.
-        """
-        print("Reviewing analysis against provided laws and judgements...")
-        prompt = f"""
-הנך מקבל את החוקים, פסקי הדין, והניתוח המשפטי הבא:
-
-📄 חוקים:
-{laws}
-
-📚 פסקי דין:
-{judgements}
-
-📑 ניתוח משפטי:
-{analysis}
-
-🧾 מסמכים שסופקו לבדיקה:
-{ "\n\n".join([f"{doc_type.upper()} CONTENT:\n{content}" for doc_type, content in documents.items()]) }
-
-🔍 הקשר נוסף:
-{context}
-
-🔍 הנחיות לבדיקה:
-
-1. בדוק בקפידה האם הניתוח **נכון, שלם, ומבוסס אך ורק** על:
-   - החוקים שסופקו
-   - פסקי הדין שסופקו
-   - המסמכים שסופקו (תלוש שכר, חוזה עבודה, דוח נוכחות)
-2. אין להשתמש בידע כללי או חיצוני, ואין להניח מידע שאינו מופיע במפורש במסמכים.
-3. אין להעתיק או לעשות שימוש בערכים מהחוקים כדוגמה (כגון 6000 ₪, 186 שעות, 5 ימי מחלה), אלא אם הם מופיעים במפורש במסמכים.
-4. אם לא מצוינים נתונים מפורשים (כמו שעות נוספות, ימי מחלה, סכום שכר מינימום), יש להניח **שאין עבירה**, ואין לדווח על הפרה או לבצע חישובים משוערים.
-5. כל החישובים (סכומים, אחוזים, טבלאות) חייבים להיות מדויקים ולבוסס אך ורק על הערכים המופיעים במסמכים שסופקו.
-6. יש לוודא שהמסקנות המשפטיות תואמות את המסמכים ואת החוק, ללא שגיאות, וללא חריגות או תוספות לא מבוססות.
-
-🛠 אם הניתוח תקין – החזר אותו כפי שהוא.  
-🛠 אם יש בו שגיאות – תקן אותו כך שיהיה מדויק, מבוסס אך ורק על המסמכים, החוקים ופסקי הדין שסופקו.  
-
-
-- לציין שבוצע תיקון.
-- להסביר מה שונה.
-- להזכיר שהניתוח תוקן או נערך מחדש.
-
-✅ **יש להחזיר תמיד את הניתוח הסופי בלבד, בעברית מלאה וללא כל הערה.**
-
-"""
-        try:
-            result = await self.review_agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
-            return result.output if hasattr(result, 'output') else str(result) 
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error in review_analysis: {get_error_detail(e)}")
-
     async def create_report_with_rule_engine(self, payslip_data: List[Dict], attendance_data: List[Dict] = None, 
                                             contract_data: Dict = None, analysis_type: str = "rule_based") -> Dict:
         """
@@ -588,7 +416,7 @@ Always check and correct all calculations.
             Dictionary with rule-based analysis results
         """
         
-        if not self.rule_evaluator or not self.rules_data:
+        if not self.rule_evaluator:
             raise HTTPException(
                 status_code=500,
                 detail="Rule Engine not properly initialized"
@@ -597,6 +425,10 @@ Always check and correct all calculations.
         try:
             print("🔄 Running rule-based analysis...")
             print(analysis_type)
+            
+            # Reload rules to stay updated with the data
+            rules_path = os.path.join(os.path.dirname(__file__), 'rules/labor_law_rules.json')
+            self.rules_data = self.rule_loader.load_rules(rules_path)
             
             # Validate and sanitize input data
             if not payslip_data or not isinstance(payslip_data, list):
@@ -625,10 +457,38 @@ Always check and correct all calculations.
                     'attendance': attendance,
                     'contract': contract
                 }
-                # Flatten all dynamic params for direct access
+                
+                def coerce_value(value, param_type):
+                    if value is None:
+                        return None
+                    if param_type == "number":
+                        if isinstance(value, str):
+                            value = value.strip()
+                            # Remove commas for numbers like "5,300"
+                            value = value.replace(',', '')
+                            try:
+                                # Try int first
+                                if '.' not in value:
+                                    return int(value)
+                                else:
+                                    return float(value)
+                            except ValueError:
+                                return value  # Keep as string if can't convert
+                        elif isinstance(value, (int, float)):
+                            return value
+                        else:
+                            return value
+                    else:  # string
+                        return str(value) if value is not None else None
+                
+                # Flatten all dynamic params for direct access with type coercion
                 for section in ['payslip', 'attendance', 'contract']:
                     for p in params[section]:
-                        context[p['param']] = (locals()[section] or {}).get(p['param'], None)
+                        raw_value = (locals()[section] or {}).get(p['param'], None)
+                        param_type = p.get('type', 'number')
+                        # Only set if we have a value (don't overwrite with None)
+                        if raw_value is not None:
+                            context[p['param']] = coerce_value(raw_value, param_type)
                 # Add employee_id and month for legacy compatibility
                 context['employee_id'] = context.get('employee_id', payslip.get('employee_id', None))
                 context['month'] = context.get('month', payslip.get('month', None))
@@ -685,6 +545,7 @@ Always check and correct all calculations.
                 for rule in self.rules_data['rules']:
                     # Check if rule is applicable for this month
                     if not RuleEvaluator.is_rule_applicable(rule, month):
+                        print(rule["name"], "skipped for month", month)
                         continue
                     
                     # Evaluate rule checks
@@ -992,17 +853,6 @@ Always check and correct all calculations.
                                                  analysis_type: str) -> str:
         """Format rule engine results using AI for complex analysis types"""
         
-        # Prepare data summary for AI
-        data_summary = {
-            'violations': violation_results,
-            'inconclusive': inconclusive_results,
-            'compliant': compliant_results,
-            'total_amount_owed': total_amount_owed,
-            'violation_count': len(violation_results),
-            'inconclusive_count': len(inconclusive_results),
-            'compliant_count': len(compliant_results)
-        }
-        
         # Build prompt based on analysis type
         if analysis_type == "report":
             instructions = self._get_report_instructions()
@@ -1084,8 +934,6 @@ Always check and correct all calculations.
         
         return "\n".join(formatted)
 
-        
-
     async def process_document(self, files: Union[UploadFile, List[UploadFile]], doc_types: Union[str, List[str]], compress: bool = False) -> Dict[str, Union[List[Dict], Dict]]:
         """Process uploaded documents and extract text concurrently"""
         if not files:
@@ -1118,7 +966,7 @@ Always check and correct all calculations.
 
             print(f"Read {len(content)} bytes from {file.filename}")
             # Call updated _extract_text2 with doc_type parameter
-            extracted_data = await asyncio.to_thread(self._extract_text2, content, file.filename, doc_type, compress)
+            extracted_data = await self._extract_text2(content, file.filename, doc_type, compress)
             return (doc_type.lower(), idx, extracted_data)
 
         tasks = [process_single(file, doc_type, idx+1) for idx, (file, doc_type) in enumerate(zip(files, doc_types))]
@@ -1166,36 +1014,6 @@ Always check and correct all calculations.
             "attendance_data": attendance_data
         }
 
-    async def _build_summary_prompt_from_combined(self, combined_report: str, analysis_type: str) -> str:
-        """
-        Build a prompt to convert the reviewed combined report into the requested summary type.
-        """
-        if analysis_type == "table":
-            instructions = self._get_table_instructions()
-        elif analysis_type == "violation_count_table":
-            instructions = self._get_violation_count_table_instructions()
-        elif analysis_type == "violations_list":
-            instructions = self._get_violations_list_instructions()
-        elif analysis_type == "easy":
-            instructions = self._get_easy_instructions()
-        elif analysis_type == "claim":
-            instructions = self._get_claim_instructions()
-        elif analysis_type == "warning_letter":
-            instructions = self._get_warning_letter_instructions()
-        else:
-            raise ValueError(f"Unsupported summary analysis_type: {analysis_type}")
-
-        prompt = f"""
-להלן דוח ניתוח משפטי משולב של מסמכי העובד:
-
-{combined_report}
-
----
-
-{instructions}
-"""
-        return prompt
-
     async def qna(self, report: str, questions: str) -> str:
         """Generate answer of queries based on the provided document content."""
         prompt = f"""
@@ -1214,233 +1032,6 @@ Always check and correct all calculations.
 """
         result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
         return result.output
-
-    async def fix_ocr_content(self, ocr_content: str) -> str:
-        """Fix and rearrange OCR content from payslips, attendance sheets, and contracts to improve readability and structure."""
-        prompt = f"""
-You are an expert document processing assistant specializing in Israeli employment documents. Your task is to fix and rearrange OCR-extracted content from payslips, attendance sheets, and employment contracts to make them more readable and properly structured.
-
-🚫 CRITICAL RULES - DO NOT VIOLATE:
-1. DO NOT add, invent, or hallucinate ANY information that is not present in the original OCR content
-2. DO NOT remove or omit ANY information from the original content
-3. DO NOT change numbers, dates, names, or any factual data
-4. ONLY rearrange and fix formatting issues - preserve ALL original content exactly as it appears
-5. If text is unclear or garbled, keep it as-is rather than guessing what it should be
-
-The OCR content is from employment documents and may have issues such as:
-- Misaligned text and spacing in tables
-- Broken words split across lines
-- Incorrect line breaks in salary/payment information
-- Mixed up columns in payslip tables
-- Garbled characters in Hebrew/English text
-- Scattered table data that should be aligned
-
-OCR Content to Fix:
-{ocr_content}
-
-Instructions for Rearrangement:
-1. Fix obvious OCR spacing and alignment issues ONLY
-2. If there are tables (salary details, attendance records), align them properly
-3. Group related information together (employee details, salary breakdown, deductions, etc.)
-4. Maintain proper Hebrew text direction if present
-5. Preserve ALL numbers, amounts, dates, and names exactly as they appear
-6. Keep all original information - just make it more readable
-7. If content appears to be a payslip, organize sections like: Employee Info, Salary Details, Deductions, Net Pay
-8. If content appears to be attendance, organize by dates, hours, etc.
-9. If content appears to be a contract, maintain clause structure
-
-🔍 Remember: You are ONLY fixing formatting and alignment - NOT interpreting or changing content.
-
-Return only the cleaned and restructured content with NO explanations, comments, or additions.
-"""
-        
-        try:
-            result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
-            return result.output if hasattr(result, 'output') else str(result)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error fixing OCR content: {get_error_detail(e)}")
-
-    async def create_report(self, payslip_text: str = None, contract_text: str = None, 
-                          attendance_text: str = None, analysis_type: str = "report", 
-                          context: str = None) -> DocumentAnalysisResponse:
-        """Create legal analysis report using RAG and PydanticAI"""
-
-        # Prepare documents for analysis
-        documents = {}
-        if payslip_text:
-            documents['payslip'] = payslip_text
-        if contract_text:
-            documents['contract'] = contract_text
-        if attendance_text:
-            documents['attendance report'] = attendance_text
-
-        # Special handling for table, violation_count_table, violations_list, easy, claim, warning_letter
-        special_types = ["table", "violation_count_table", "violations_list", "easy", "claim", "warning_letter"]
-        if analysis_type in special_types:
-            # Step 1: Run combined analysis and review
-            combined_report = await self.create_report(
-                payslip_text=payslip_text,
-                contract_text=contract_text,
-                attendance_text=attendance_text,
-                analysis_type="combined",
-                context=context
-            )
-            reviewed_combined = combined_report.legal_analysis
-            print("Review Combined Report:")
-            print(reviewed_combined)
-            # Step 2: Build a summary prompt from the reviewed combined report
-            prompt = await self._build_summary_prompt_from_combined(reviewed_combined, analysis_type)
-            try:
-                result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
-                analysis = result.output
-            except Exception as pydantic_error:
-                raise pydantic_error
-            # No review needed for these summary types
-            return DocumentAnalysisResponse(
-                legal_analysis=analysis,
-                status="success",
-                analysis_type=analysis_type,
-                formatted_laws=combined_report.formatted_laws,
-                formatted_judgements=combined_report.formatted_judgements,
-                documents=combined_report.documents
-            )
-
-        # Normal flow for all other types
-        # Pass the documents to the question agent to generate search queries
-        docs = "\n\n".join([f"{doc_type.upper()} CONTENT:\n{content}" for doc_type, content in documents.items()])
-        try:
-            question_result = await self.question_agent.run(docs)
-        except Exception as e:
-            print(f"Error generating search queries: {get_error_detail(e)}")
-            raise HTTPException(status_code=500, detail=f"Error generating search queries: {get_error_detail(e)}")
-
-        # Extract the search queries from the result object
-        search_queries = question_result.output if hasattr(question_result, 'output') else question_result
-        
-        print(f"Generated search queries: {search_queries}")
-
-        # Query laws and judgements using the generated search queries
-        all_relevant_laws = []
-        all_relevant_judgements = []
-
-        for query in search_queries:
-            print(f"Searching for laws with query: {query}")
-            laws = self.rag_storage.search_laws(query, n_results=2)  # Fewer results per query
-            all_relevant_laws.extend(laws)
-
-            print(f"Searching for judgements with query: {query}")
-            judgements = self.rag_storage.search_judgements(query, n_results=1)  # Fewer results per query
-            all_relevant_judgements.extend(judgements)
-
-        # Remove duplicates based on ID or content
-        unique_laws = []
-        seen_law_ids = set()
-        for law in all_relevant_laws:
-            law_id = law.get('id') or law.get('metadata', {}).get('id')
-            if law_id and law_id not in seen_law_ids:
-                unique_laws.append(law)
-                seen_law_ids.add(law_id)
-            elif not law_id and law not in unique_laws:  # Fallback for items without ID
-                unique_laws.append(law)
-
-        unique_judgements = []
-        seen_judgement_ids = set()
-        for judgement in all_relevant_judgements:
-            judgement_id = judgement.get('id') or judgement.get('metadata', {}).get('id')
-            if judgement_id and judgement_id not in seen_judgement_ids:
-                unique_judgements.append(judgement)
-                seen_judgement_ids.add(judgement_id)
-            elif not judgement_id and judgement not in unique_judgements:  # Fallback for items without ID
-                unique_judgements.append(judgement)
-
-        # Format the laws and judgements for the prompt
-        formatted_laws = self.rag_storage.format_laws_for_prompt(unique_laws)
-        formatted_judgements = self.rag_storage.format_judgements_for_prompt(unique_judgements)
-
-        # Combine formatted content
-        combined_context = f"{formatted_laws}\n\n{formatted_judgements}"
-        print(f"Retrieved {len(unique_laws)} laws and {len(unique_judgements)} judgements")
-
-        print(combined_context)
-        # Build the analysis prompt based on type
-        prompt = await self._build_analysis_prompt(
-            analysis_type, documents, combined_context, context
-        )
-
-        try:
-            # Generate analysis using PydanticAI
-            try:
-                result = await self.agent.run(prompt,model_settings=ModelSettings(temperature=0.0))
-                analysis = result.output
-            except Exception as pydantic_error:
-                    raise pydantic_error
-            print("Analysis generated successfully.")
-            print(f"Analysis type: {analysis}")
-            # --- Review the analysis for legal and calculation correctness ---
-            # try:
-            #     reviewed_analysis = await self.review_analysis(formatted_laws, formatted_judgements, analysis, documents,context)
-            #     print("Review agent completed successfully.")
-            # except Exception as review_error:
-            #     print(f"Review agent failed: {review_error}")
-            #     reviewed_analysis = analysis  # fallback to original if review fails
-
-            return DocumentAnalysisResponse(
-                legal_analysis=analysis,
-                formatted_laws=formatted_laws,
-                formatted_judgements=formatted_judgements,
-                documents=documents,
-                status="success",
-                analysis_type=analysis_type
-            )
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Error generating legal analysis: {get_error_detail(e)}"
-            )
-
-    async def _build_analysis_prompt(self, analysis_type: str, documents: Dict, 
-                                   laws_and_judgements: str, 
-                                   context: str = None) -> str:
-        """Build analysis prompt based on type"""
-        
-        base_prompt = f"""
-RELEVANT LABOR LAWS and JUDGEMENTS (Retrieved from legal database):
-{laws_and_judgements}
-
-
-DOCUMENTS PROVIDED FOR ANALYSIS:
-{', '.join(documents.keys())}
-
-ADDITIONAL CONTEXT:
-{context if context else 'No additional context provided.'}
-"""
-        # Add document contents to prompt
-        for doc_type, content in documents.items():
-            base_prompt += f"\n{doc_type.upper()} CONTENT:\n{content}\n"
-        
-        # Add specific instructions based on analysis type
-        if analysis_type == 'report':
-            base_prompt += self._get_report_instructions()
-        elif analysis_type == 'profitability':
-            base_prompt += self._get_profitability_instructions()
-        # elif analysis_type == 'professional':
-        #     base_prompt += self._get_professional_instructions()
-        elif analysis_type == 'warning_letter':
-            base_prompt += self._get_warning_letter_instructions()
-        elif analysis_type == 'easy':
-            base_prompt += self._get_easy_instructions()
-        elif analysis_type == 'table':
-            base_prompt += self._get_table_instructions()
-        elif analysis_type == 'claim':
-            base_prompt += self._get_claim_instructions()
-        elif analysis_type == 'combined':
-            base_prompt += self._get_combined_instructions()
-        elif analysis_type == 'violation_count_table':
-            base_prompt += self._get_violation_count_table_instructions()
-        elif analysis_type == 'violations_list':
-            base_prompt += self._get_violations_list_instructions()
-        
-        return base_prompt
 
     def _get_report_instructions(self) -> str:
         return """
@@ -1919,10 +1510,10 @@ Formatting requirements:
 - If no violations are found, respond with: "לא נמצאו הפרות נגד חוקי העבודה שסופקו."
 """
 
-    def _extract_text2(self, content: bytes, filename: str, doc_type: str = None, compress: bool = False) -> Dict:
+    async def _extract_text2(self, content: bytes, filename: str, doc_type: str = None, compress: bool = False) -> Dict:
         """Extract structured data from various document formats using AgenticDoc for PDFs and images"""
+        import re
         print("Extracting structured data from file:", filename.lower(), "with doc_type:", doc_type)
-
         try:
             # Load dynamic parameters for extraction schema
             dynamic_params_path = os.path.join(os.path.dirname(__file__), 'data', 'dynamic_parameters.json')
@@ -1940,12 +1531,86 @@ Formatting requirements:
                 # Create fields dict for dynamic model
                 fields = {}
                 for param in doc_params:
-                    fields[param["param"]] = (Optional[str], Field(default=None, description=param["description"]))
+                    # Use parameter type to determine field type
+                    param_type = param.get("type", "number")
+                    if param_type == "number":
+                        fields[param["param"]] = (Optional[Union[int, float]], Field(default=None, description=param["description"]))
+                    else:  # string type
+                        fields[param["param"]] = (Optional[str], Field(default=None, description=param["description"]))
 
                 # Create dynamic model
                 extraction_model = create_model(f'{doc_type.title()}Model', **fields)
             else:
                 print(f"No parameters found for doc_type: {doc_type} in dynamic_params keys: {list(dynamic_params.keys()) if dynamic_params else 'None'}")
+
+            # DOCX extraction block
+            if filename.lower().endswith('.docx'):
+                from docx import Document
+                try:
+                    docx_file = BytesIO(content)
+                    doc = Document(docx_file)
+                    # Extract paragraphs and tables separately
+                    paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
+                    tables = []
+                    for table in doc.tables:
+                        for row in table.rows:
+                            row_data = [cell.text.strip() for cell in row.cells]
+                            if any(row_data):
+                                tables.append(row_data)
+                    # Combine all text for extraction
+                    full_text = '\n'.join(paragraphs)
+                    for row in tables:
+                        full_text += '\n' + '\t'.join(row)
+                    print(f"Extracted text from DOCX: {full_text[:200]}...")
+
+                    if extraction_model:
+                        try:
+                            print("Calling Gemini AI for DOCX extraction...")
+                            # Build prompt for Gemini to extract fields using Hebrew labels
+                            doc_params = dynamic_params[doc_type.lower()]
+                            fields_description = "\n".join([f"{param['label_he']} -> {param['param']}: {param['description']} (type: {param.get('type', 'number')})" for param in doc_params])
+                            return_format = "{" + ", ".join([f'"{param["param"]}": "value"' for param in doc_params]) + "}"
+                            prompt = f"""
+Extract the following fields from the provided document text. Use the parameter names (after ->) as JSON keys.
+
+{fields_description}
+
+Document text:
+{full_text}
+
+Return only a valid JSON object with the parameter names as keys and extracted values in their appropriate types (numbers as numbers, strings as strings, or null if not found).
+
+For number fields, return numeric values (integers or decimals).
+For string fields, return text values.
+Use null for missing or unextractable values.
+
+Return format: {return_format}
+"""
+                            result = await self.hebrew_agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+                            response_text = result.output if hasattr(result, 'output') else str(result)
+                            
+                            # Try to parse JSON response
+                            try:
+                                print(f"Raw Gemini response: {response_text}")
+                                response_text = response_text.strip()
+                                # Handle markdown code blocks
+                                if response_text.startswith('```json') and response_text.endswith('```'):
+                                    response_text = response_text[7:-3].strip()
+                                elif response_text.startswith('```') and response_text.endswith('```'):
+                                    response_text = response_text[3:-3].strip()
+                                
+                                extracted_data = json.loads(response_text)
+                            except json.JSONDecodeError:
+                                print(f"Failed to parse Gemini response as JSON: {response_text}")
+                                extracted_data = {}
+                        except Exception as e:
+                            print(f"Gemini AI extraction failed: {e}")
+                            extracted_data = {}
+                    print(f"Extracted structured data from DOCX: {extracted_data}")
+                    return {'structured_data': extracted_data}
+                except Exception as e:
+                    print(f"DOCX extraction failed: {e}")
+                    return {'structured_data': {}}
 
             if filename.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg')):
                 # For PDF/images: Use extraction model with dynamic params to get structured data
@@ -2384,3 +2049,23 @@ Formatting requirements:
                 return asyncio.run(self.summarise(ai_content_text))
             else:
                 raise e
+
+    def qna_sync(self, report: str, questions: str) -> str:
+        """Synchronous wrapper for the async qna method."""
+        import asyncio
+        try:
+            return asyncio.run(self.qna(report, questions))
+        except RuntimeError as e:
+            # If there's already a running event loop (e.g. in Streamlit), use alternative
+            if self._is_streamlit():
+                try:
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    loop = asyncio.get_event_loop()
+                    return loop.run_until_complete(self.qna(report, questions))
+                except Exception as inner_e:
+                    raise RuntimeError(f"Failed to run qna async in Streamlit: {inner_e}") from e
+            else:
+                # In uvicorn/FastAPI, this shouldn't happen since we should use the async method directly
+                raise RuntimeError(f"Cannot run async method in sync context. Use the async qna method instead: {e}") from e
+            

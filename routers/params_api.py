@@ -16,18 +16,21 @@ class ParameterCreate(BaseModel):
     label_en: str
     label_he: Optional[str] = None
     description: Optional[str] = None
+    type: Optional[str] = "number"
 
 class ParameterUpdate(BaseModel):
     param: Optional[str] = None
     label_en: Optional[str] = None
     label_he: Optional[str] = None
     description: Optional[str] = None
+    type: Optional[str] = None
 
 class ParameterResponse(BaseModel):
     param: str
     label_en: str
     label_he: Optional[str] = None
     description: Optional[str] = None
+    type: Optional[str] = "number"
 
 # --- CRUD for dynamic parameters ---
 
@@ -58,8 +61,8 @@ def create_parameter(section: str, param_data: ParameterCreate):
         if any(p['param'] == param_data.param for p in existing_params):
             raise HTTPException(status_code=400, detail=f"Parameter '{param_data.param}' already exists in section '{section}'")
 
-        DynamicParams.add_param(section, param_data.param, param_data.label_en, param_data.label_he, param_data.description)
-        return {"param": param_data.param, "label_en": param_data.label_en, "label_he": param_data.label_he, "description": param_data.description}
+        DynamicParams.add_param(section, param_data.param, param_data.label_en, param_data.label_he, param_data.description, param_data.type)
+        return {"param": param_data.param, "label_en": param_data.label_en, "label_he": param_data.label_he, "description": param_data.description, "type": param_data.type}
     except HTTPException:
         raise
     except Exception as e:
@@ -92,6 +95,8 @@ def update_parameter(section: str, param_name: str, param_data: ParameterUpdate)
             params[section][param_index]['label_he'] = param_data.label_he
         if param_data.description is not None:
             params[section][param_index]['description'] = param_data.description
+        if param_data.type is not None:
+            params[section][param_index]['type'] = param_data.type
 
         DynamicParams.save(params)
         return params[section][param_index]

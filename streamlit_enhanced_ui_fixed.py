@@ -101,8 +101,8 @@ def save_rules_data(rules_data):
 def get_dynamic_params():
     return DynamicParams.load()
 
-def add_dynamic_param(section, param, label_en, label_he=None, description=None):
-    DynamicParams.add_param(section, param, label_en, label_he, description)
+def add_dynamic_param(section, param, label_en, label_he=None, description=None, param_type="number"):
+    DynamicParams.add_param(section, param, label_en, label_he, description, param_type)
 
 def get_param_labels(section):
     return [p['label_en'] for p in DynamicParams.get_params(section)]
@@ -206,10 +206,14 @@ with tab1:
                 for j, p in enumerate(payslip_fields[i:i+3]):
                     label = p['label_en']
                     key = f"payslip_{p['param']}"
-                    if '₪' in label or 'Rate' in label:
-                        payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                    param_type = p.get('type', 'number')
+                    if param_type == 'number':
+                        if '₪' in label or 'Rate' in label:
+                            payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                        else:
+                            payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
                     else:
-                        payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                        payslip_inputs[p['param']] = cols[j].text_input(label, key=key)
             test_payslip_data = {**payslip_inputs}
             # Add employee_id and month
             for p in dynamic_params['payslip']:
@@ -225,7 +229,11 @@ with tab1:
                 for j, p in enumerate(attendance_fields[i:i+3]):
                     label = p['label_en']
                     key = f"attendance_{p['param']}"
-                    attendance_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                    param_type = p.get('type', 'number')
+                    if param_type == 'number':
+                        attendance_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                    else:
+                        attendance_inputs[p['param']] = cols[j].text_input(label, key=key)
             test_attendance_data = {**attendance_inputs}
             for p in dynamic_params['attendance']:
                 if p['param'] in ['employee_id', 'month']:
@@ -240,10 +248,14 @@ with tab1:
                 for j, p in enumerate(contract_fields[i:i+3]):
                     label = p['label_en']
                     key = f"contract_{p['param']}"
-                    if '₪' in label or 'Rate' in label or 'Contribution' in label:
-                        contract_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                    param_type = p.get('type', 'number')
+                    if param_type == 'number':
+                        if '₪' in label or 'Rate' in label or 'Contribution' in label:
+                            contract_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                        else:
+                            contract_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
                     else:
-                        contract_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                        contract_inputs[p['param']] = cols[j].text_input(label, key=key)
             test_contract_data = {**contract_inputs}
             for p in dynamic_params['contract']:
                 if p['param'] == 'employee_id':
@@ -259,10 +271,11 @@ with tab1:
         param_label_en = st.text_input("English Label (shown in UI)", key="add_param_label_en")
         param_label_he = st.text_input("Hebrew Label (optional)", key="add_param_label_he")
         param_description = st.text_area("Description (optional)", key="add_param_description")
+        param_type = st.selectbox("Type", ["string", "number"], key="add_param_type")
         submit_param_btn = st.form_submit_button("Add Parameter")
         if submit_param_btn:
             if param_name and param_label_en:
-                add_dynamic_param(param_section, param_name, param_label_en, param_label_he if param_label_he else None, param_description if param_description else None)
+                add_dynamic_param(param_section, param_name, param_label_en, param_label_he if param_label_he else None, param_description if param_description else None, param_type)
                 st.success(f"Added parameter '{param_name}' to {param_section}!")
                 st.rerun()
             else:
@@ -1221,10 +1234,14 @@ with tab3:
                     for j, p in enumerate(payslip_fields[i:i+3]):
                         label = p['label_en']
                         key = f"payslip_{p['param']}_heb"
-                        if '₪' in label or 'Rate' in label:
-                            payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                        param_type = p.get('type', 'number')
+                        if param_type == 'number':
+                            if '₪' in label or 'Rate' in label:
+                                payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                            else:
+                                payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
                         else:
-                            payslip_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                            payslip_inputs[p['param']] = cols[j].text_input(label, key=key)
                 test_payslip_data = {**payslip_inputs}
                 for p in dynamic_params['payslip']:
                     if p['param'] in ['employee_id', 'month']:
@@ -1239,7 +1256,11 @@ with tab3:
                     for j, p in enumerate(attendance_fields[i:i+3]):
                         label = p['label_en']
                         key = f"attendance_{p['param']}_heb"
-                        attendance_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                        param_type = p.get('type', 'number')
+                        if param_type == 'number':
+                            attendance_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                        else:
+                            attendance_inputs[p['param']] = cols[j].text_input(label, key=key)
                 test_attendance_data = {**attendance_inputs}
                 for p in dynamic_params['attendance']:
                     if p['param'] in ['employee_id', 'month']:
@@ -1254,10 +1275,14 @@ with tab3:
                     for j, p in enumerate(contract_fields[i:i+3]):
                         label = p['label_en']
                         key = f"contract_{p['param']}_heb"
-                        if '₪' in label or 'Rate' in label or 'Contribution' in label:
-                            contract_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                        param_type = p.get('type', 'number')
+                        if param_type == 'number':
+                            if '₪' in label or 'Rate' in label or 'Contribution' in label:
+                                contract_inputs[p['param']] = cols[j].number_input(label, min_value=0.0, value=0.0, step=0.1, key=key)
+                            else:
+                                contract_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
                         else:
-                            contract_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                            contract_inputs[p['param']] = cols[j].text_input(label, key=key)
                 test_contract_data = {**contract_inputs}
                 for p in dynamic_params['contract']:
                     if p['param'] == 'employee_id':
@@ -1271,10 +1296,11 @@ with tab3:
             param_label_en = st.text_input("תווית באנגלית (מוצג בממשק)", key="add_param_label_en_heb")
             param_label_he = st.text_input("תווית בעברית (אופציונלי)", key="add_param_label_he_heb")
             param_description = st.text_area("תיאור (אופציונלי)", key="add_param_description_heb")
+            param_type = st.selectbox("סוג", ["string", "number"], key="add_param_type_heb")
             submit_param_btn = st.form_submit_button("הוסף פרמטר")
             if submit_param_btn:
                 if param_name and param_label_en:
-                    add_dynamic_param(param_section, param_name, param_label_en, param_label_he if param_label_he else None, param_description if param_description else None)
+                    add_dynamic_param(param_section, param_name, param_label_en, param_label_he if param_label_he else None, param_description if param_description else None, param_type)
                     st.success(f"הפרמטר '{param_name}' נוסף ל-{param_section}!")
                     st.rerun()
                 else:
