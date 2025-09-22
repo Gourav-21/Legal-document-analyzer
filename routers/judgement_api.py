@@ -19,8 +19,10 @@ class JudgementResponse(BaseModel):
 @router.post("/judgements", response_model=JudgementResponse)
 async def add_judgement(judgement_input: JudgementText):
     try:
-        judgement_id = rag_storage.add_judgement(judgement_input.text, judgement_input.metadata)
-        return {"id": judgement_id, "text": judgement_input.text, "metadata": judgement_input.metadata}
+        # Trim input text
+        text = judgement_input.text.strip() if judgement_input.text else judgement_input.text
+        judgement_id = rag_storage.add_judgement(text, judgement_input.metadata)
+        return {"id": judgement_id, "text": text, "metadata": judgement_input.metadata}
     except Exception as e:
         raise HTTPException(
             status_code=500,

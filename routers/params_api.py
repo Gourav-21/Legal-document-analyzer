@@ -56,13 +56,19 @@ def get_params_by_section(section: str):
 def create_parameter(section: str, param_data: ParameterCreate):
     """Add a new parameter to a section."""
     try:
+        # Trim input strings
+        param = param_data.param.strip() if param_data.param else param_data.param
+        label_en = param_data.label_en.strip() if param_data.label_en else param_data.label_en
+        label_he = param_data.label_he.strip() if param_data.label_he else param_data.label_he
+        description = param_data.description.strip() if param_data.description else param_data.description
+        
         # Check if parameter already exists
         existing_params = DynamicParams.get_params(section)
-        if any(p['param'] == param_data.param for p in existing_params):
-            raise HTTPException(status_code=400, detail=f"Parameter '{param_data.param}' already exists in section '{section}'")
+        if any(p['param'] == param for p in existing_params):
+            raise HTTPException(status_code=400, detail=f"Parameter '{param}' already exists in section '{section}'")
 
-        DynamicParams.add_param(section, param_data.param, param_data.label_en, param_data.label_he, param_data.description, param_data.type)
-        return {"param": param_data.param, "label_en": param_data.label_en, "label_he": param_data.label_he, "description": param_data.description, "type": param_data.type}
+        DynamicParams.add_param(section, param, label_en, label_he, description, param_data.type)
+        return {"param": param, "label_en": label_en, "label_he": label_he, "description": description, "type": param_data.type}
     except HTTPException:
         raise
     except Exception as e:
@@ -86,15 +92,15 @@ def update_parameter(section: str, param_name: str, param_data: ParameterUpdate)
         if param_index is None:
             raise HTTPException(status_code=404, detail=f"Parameter '{param_name}' not found in section '{section}'")
 
-        # Update the parameter
+        # Update the parameter with trimmed values
         if param_data.param is not None:
-            params[section][param_index]['param'] = param_data.param
+            params[section][param_index]['param'] = param_data.param.strip()
         if param_data.label_en is not None:
-            params[section][param_index]['label_en'] = param_data.label_en
+            params[section][param_index]['label_en'] = param_data.label_en.strip()
         if param_data.label_he is not None:
-            params[section][param_index]['label_he'] = param_data.label_he
+            params[section][param_index]['label_he'] = param_data.label_he.strip()
         if param_data.description is not None:
-            params[section][param_index]['description'] = param_data.description
+            params[section][param_index]['description'] = param_data.description.strip()
         if param_data.type is not None:
             params[section][param_index]['type'] = param_data.type
 

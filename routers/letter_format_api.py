@@ -15,7 +15,9 @@ class LetterFormatResponse(BaseModel):
 @router.post("/format", response_model=LetterFormatResponse)
 async def add_letter_format(format_input: LetterFormatInput):
     try:
-        return format_storage.add_format(format_input.content)
+        # Trim input content
+        content = format_input.content.strip() if format_input.content else format_input.content
+        return format_storage.add_format(content)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -41,7 +43,9 @@ async def get_format():
 @router.put("/format", response_model=LetterFormatResponse)
 async def update_format(format_input: LetterFormatInput):
     try:
-        return format_storage.update_format(format_input.content)
+        # Trim input content
+        content = format_input.content.strip() if format_input.content else format_input.content
+        return format_storage.update_format(content)
     except Exception as e:
         raise HTTPException(
             status_code=500,
