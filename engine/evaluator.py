@@ -43,6 +43,8 @@ class RuleEvaluator:
     def extract_variables_from_expression(expression: str) -> Set[str]:
         """Extract variable names from a Python expression using AST parsing"""
         try:
+            # Strip whitespace to handle leading/trailing spaces that cause syntax errors
+            expression = expression.strip()
             tree = ast.parse(expression, mode='eval')
             extractor = VariableExtractor()
             extractor.visit(tree)
@@ -148,7 +150,7 @@ class RuleEvaluator:
             
             # Try to evaluate condition
             try:
-                cond = simple_eval(check.get("condition", "False"), names=context, functions=allowed_functions)
+                cond = simple_eval(check.get("condition", "False").strip(), names=context, functions=allowed_functions)
             except Exception as e:
                 print(f"[Eval Error] Condition: {check.get('condition', 'N/A')}: {e}")
                 cond = False
@@ -160,7 +162,7 @@ class RuleEvaluator:
             # If condition is true, try to evaluate amount
             if cond:
                 try:
-                    amount = simple_eval(check.get("amount_owed", "0"), names=context, functions=allowed_functions)
+                    amount = simple_eval(check.get("amount_owed", "0").strip(), names=context, functions=allowed_functions)
                     result["amount"] = amount
                     if not all_missing:  # Only set violation message if no missing fields
                         result["message"] = check.get("violation_message", "Violation detected")
