@@ -1794,59 +1794,76 @@ Return format: {return_format}
             total_hours = 0.0
             valid_rows_count = 0
 
+            def _to_time(val):
+                """Normalize various time/date representations to a time object or None."""
+                if pd.isna(val):
+                    return None
+                # If it's a datetime (including pandas.Timestamp), return the time component
+                try:
+                    if isinstance(val, datetime):
+                        return val.time()
+                except Exception:
+                    pass
+
+                # Handle numeric Excel time fractions (e.g., 0.354166... = 08:30)
+                if isinstance(val, (int, float)):
+                    try:
+                        num = float(val)
+                        # Typical Excel time fractions are between 0 and 1
+                        if 0.0 <= num <= 1.0:
+                            secs = int(round(num * 86400))
+                            return (datetime(1970, 1, 1) + timedelta(seconds=secs)).time()
+                    except Exception:
+                        pass
+
+                # Try to parse using pandas (handles numpy datetime64, Timestamp, etc.)
+                try:
+                    ts = pd.to_datetime(val, errors='coerce')
+                    if not pd.isna(ts):
+                        return ts.time()
+                except Exception:
+                    pass
+
+                # If it's a string, try common time formats
+                if isinstance(val, str):
+                    val_str = val.strip()
+                    for fmt in ['%H:%M:%S', '%H:%M', '%I:%M %p', '%I:%M:%S %p', '%H.%M']:
+                        try:
+                            return datetime.strptime(val_str, fmt).time()
+                        except Exception:
+                            continue
+
+                # If it already behaves like a time (has hour/minute), accept it
+                if hasattr(val, 'hour') and hasattr(val, 'minute'):
+                    return val
+
+                return None
+
             for idx, row in df_clean.iterrows():
                 try:
-                    checkin_time = row[checkin_col]
-                    departure_time = row[departure_col]
+                    raw_checkin = row[checkin_col]
+                    raw_departure = row[departure_col]
 
-                    # Handle different time formats
-                    if pd.isna(checkin_time) or pd.isna(departure_time):
+                    checkin_time = _to_time(raw_checkin)
+                    departure_time = _to_time(raw_departure)
+
+                    if not checkin_time or not departure_time:
+                        # skip rows we couldn't normalize
                         continue
 
-                    # Convert to datetime if they're not already
-                    if not isinstance(checkin_time, datetime):
-                        if isinstance(checkin_time, str):
-                            # Try different time formats
-                            for fmt in ['%H:%M:%S', '%H:%M', '%I:%M %p', '%I:%M:%S %p']:
-                                try:
-                                    checkin_time = datetime.strptime(checkin_time, fmt).time()
-                                    break
-                                except:
-                                    continue
-                        elif hasattr(checkin_time, 'hour'):  # Already a time object
-                            pass
-                        else:
-                            continue
+                    # Create datetime objects for an arbitrary same date to compute difference
+                    today = datetime.now().date()
+                    checkin_dt = datetime.combine(today, checkin_time)
+                    departure_dt = datetime.combine(today, departure_time)
 
-                    if not isinstance(departure_time, datetime):
-                        if isinstance(departure_time, str):
-                            # Try different time formats
-                            for fmt in ['%H:%M:%S', '%H:%M', '%I:%M %p', '%I:%M:%S %p']:
-                                try:
-                                    departure_time = datetime.strptime(departure_time, fmt).time()
-                                    break
-                                except:
-                                    continue
-                        elif hasattr(departure_time, 'hour'):  # Already a time object
-                            pass
-                        else:
-                            continue
+                    # Handle overnight shifts (departure next day)
+                    if departure_dt < checkin_dt:
+                        departure_dt += timedelta(days=1)
 
-                    # Calculate hours worked for this day
-                    if hasattr(checkin_time, 'hour') and hasattr(departure_time, 'hour'):
-                        # Create datetime objects for today to calculate difference
-                        today = datetime.now().date()
-                        checkin_dt = datetime.combine(today, checkin_time)
-                        departure_dt = datetime.combine(today, departure_time)
-
-                        # Handle overnight shifts (departure next day)
-                        if departure_dt < checkin_dt:
-                            departure_dt += timedelta(days=1)
-
-                        hours_worked = (departure_dt - checkin_dt).total_seconds() / 3600
-                        total_hours += hours_worked
-                        valid_rows_count += 1
-                        print(f"Row {idx}: Check-in {checkin_time}, Departure {departure_time}, Hours: {hours_worked:.2f}")
+                    hours_worked = (departure_dt - checkin_dt).total_seconds() / 3600
+                    total_hours += hours_worked
+                    valid_rows_count += 1
+                    print(f"Row {idx}: Check-in {checkin_time}, Departure {departure_time}, Hours: {hours_worked:.2f}")
 
                 except Exception as e:
                     print(f"Error processing row {idx}: {e}")
