@@ -18,7 +18,7 @@ def analyze_real_payslip():
     payslip = input_data['payslip'][0]
     attendance = input_data['attendance'][0]
     contract = input_data['contract'][0]
-    context = build_context(payslip, attendance, contract)
+    context = build_context(payslip, attendance, contract, None)
 
     total_violations = 0
     violation_details = []

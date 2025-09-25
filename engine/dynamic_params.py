@@ -18,7 +18,7 @@ class DynamicParams:
 
     @staticmethod
     def add_param(section, param, label_en, label_he=None, description=None, param_type="number"):
-        """Add a new parameter to a section (payslip, attendance, contract)."""
+        """Add a new parameter to a section (payslip, attendance, contract, employee)."""
         params = DynamicParams.load()
         if section not in params:
             params[section] = []

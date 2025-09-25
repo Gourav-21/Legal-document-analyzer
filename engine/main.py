@@ -10,18 +10,20 @@ OUTPUT_PATH = os.path.join(os.path.dirname(__file__), '../output/report_2024_07.
 
 from dynamic_params import DynamicParams
 
-def build_context(payslip, attendance, contract):
+def build_context(payslip, attendance, contract, employee=None):
     # Use dynamic param config to build context
     params = DynamicParams.load()
     context = {
         'payslip': payslip,
         'attendance': attendance,
-        'contract': contract
+        'contract': contract,
+        'employee': employee
     }
     # Flatten all dynamic params for direct access
-    for section in ['payslip', 'attendance', 'contract']:
-        for p in params[section]:
-            context[p['param']] = (locals()[section] or {}).get(p['param'], None)
+    for section in ['payslip', 'attendance', 'contract', 'employee']:
+        section_data = locals()[section] if section in locals() and locals()[section] is not None else {}
+        for p in params.get(section, []):
+            context[p['param']] = section_data.get(p['param'], None)
     # Add employee_id and month for legacy compatibility
     context['employee_id'] = context.get('employee_id', payslip.get('employee_id', None))
     context['month'] = context.get('month', payslip.get('month', None))

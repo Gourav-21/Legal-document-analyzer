@@ -77,6 +77,7 @@ class ExpressionTestRequest(BaseModel):
     payslip: Optional[Dict[str, Any]] = {}
     attendance: Optional[Dict[str, Any]] = {}
     contract: Optional[Dict[str, Any]] = {}
+    employee: Optional[Dict[str, Any]] = {}
 
 class ExpressionTestResponse(BaseModel):
     success: bool
@@ -101,6 +102,8 @@ class RuleTestRequest(BaseModel):
     payslip: Optional[Dict[str, Any]] = {}
     attendance: Optional[Dict[str, Any]] = {}
     contract: Optional[Dict[str, Any]] = {}
+    employee: Optional[Dict[str, Any]] = {}
+
 
 class RuleCheckResult(BaseModel):
     check_id: Optional[str]
@@ -138,7 +141,8 @@ async def test_expression(request: ExpressionTestRequest):
         context = build_context(
             request.payslip or {},
             request.attendance or {},
-            request.contract or {}
+            request.contract or {},
+            request.employee or {}
         )
 
         # Find missing variables in the expression
@@ -194,7 +198,8 @@ async def test_rule(request: RuleTestRequest):
         context = build_context(
             request.payslip or {},
             request.attendance or {},
-            request.contract or {}
+            request.contract or {},
+            request.employee or {}
         )
 
         # Define allowed functions once

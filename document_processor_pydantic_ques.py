@@ -1,4 +1,3 @@
-
 from fastapi import UploadFile, HTTPException
 from PIL import Image
 import os
@@ -402,7 +401,7 @@ Your task is to extract specific fields from provided Hebrew text content. You m
             raise ValueError(f"Failed to parse AI response as JSON array: {response_text}")
 
     async def create_report_with_rule_engine(self, payslip_data: List[Dict], attendance_data: List[Dict] = None, 
-                                            contract_data: Dict = None, analysis_type: str = "rule_based") -> Dict:
+                                            contract_data: Dict = None, employee_data: Dict = None, analysis_type: str = "rule_based") -> Dict:
         """
         Create legal analysis report using the rule engine for structured violation detection
         
@@ -410,6 +409,7 @@ Your task is to extract specific fields from provided Hebrew text content. You m
             payslip_data: List of payslip data dictionaries
             attendance_data: List of attendance data dictionaries
             contract_data: Contract data dictionary
+            employee_data: Employee data dictionary
             analysis_type: Type of analysis to perform
             
         Returns:
@@ -440,6 +440,9 @@ Your task is to extract specific fields from provided Hebrew text content. You m
             if contract_data is None or not isinstance(contract_data, dict):
                 contract_data = {}
             
+            if employee_data is None or not isinstance(employee_data, dict):
+                employee_data = {}
+            
             print(f"Processing {len(payslip_data)} payslips, {len(attendance_data)} attendance records")
             print(payslip_data)
             print(attendance_data)
@@ -448,14 +451,15 @@ Your task is to extract specific fields from provided Hebrew text content. You m
             from engine.evaluator import RuleEvaluator
             
             # Define context builder function (creates nested structure expected by rules)
-            def build_context(payslip, attendance, contract):
+            def build_context(payslip, attendance, contract, employee=None):
                 # Use dynamic param config to build context (matches main.py logic)
                 from engine.dynamic_params import DynamicParams
                 params = DynamicParams.load()
                 context = {
                     'payslip': payslip,
                     'attendance': attendance,
-                    'contract': contract
+                    'contract': contract,
+                    'employee': employee
                 }
                 
                 def coerce_value(value, param_type):
@@ -482,9 +486,10 @@ Your task is to extract specific fields from provided Hebrew text content. You m
                         return str(value) if value is not None else None
                 
                 # Flatten all dynamic params for direct access with type coercion
-                for section in ['payslip', 'attendance', 'contract']:
-                    for p in params[section]:
-                        raw_value = (locals()[section] or {}).get(p['param'], None)
+                for section in ['payslip', 'attendance', 'contract', 'employee']:
+                    section_data = locals()[section] if section in locals() and locals()[section] is not None else {}
+                    for p in params.get(section, []):
+                        raw_value = section_data.get(p['param'], None)
                         param_type = p.get('type', 'number')
                         # Only set if we have a value (don't overwrite with None)
                         if raw_value is not None:
@@ -538,8 +543,11 @@ Your task is to extract specific fields from provided Hebrew text content. You m
                 # Get contract data (use first contract if multiple)
                 contract = contract_data if contract_data else {}
                 
+                # Get employee data
+                employee = employee_data if employee_data else {}
+                
                 # Build context for rule evaluation
-                context = build_context(payslip, attendance, contract)
+                context = build_context(payslip, attendance, contract, employee)
                 
                 # Evaluate each rule
                 for rule in self.rules_data['rules']:
@@ -976,11 +984,13 @@ Your task is to extract specific fields from provided Hebrew text content. You m
         payslip_data = []
         contract_data = []
         attendance_data = []
+        employee_data = []
         
         # Initialize separate counters for each document type
         payslip_counter = 0
         contract_counter = 0
         attendance_counter = 0
+        employee_counter = 0
 
         for doc_type, _, extracted_data in results:
             if doc_type == "payslip":
@@ -1006,12 +1016,20 @@ Your task is to extract specific fields from provided Hebrew text content. You m
                 structured_attendance['month'] = structured_attendance.get('month')  # Default fallback
                 structured_attendance['document_number'] = attendance_counter
                 attendance_data.append(structured_attendance)
+                
+            elif doc_type == "employee":
+                employee_counter += 1
+                structured_employee = extracted_data.get('structured_data', {})
+                structured_employee['employee_id'] = structured_employee.get('employee_id')
+                structured_employee['document_number'] = employee_counter
+                employee_data.append(structured_employee)
 
         # Return in the format expected by create_report_with_rule_engine
         return {
             "payslip_data": payslip_data,
             "contract_data": contract_data[0] if contract_data else {},  # Single contract dict as expected
-            "attendance_data": attendance_data
+            "attendance_data": attendance_data,
+            "employee_data": employee_data[0] if employee_data else {}  # Single employee dict as expected
         }
 
     async def qna(self, report: str, questions: str) -> str:
@@ -1586,7 +1604,7 @@ Use null for missing or unextractable values.
 
 Return format: {return_format}
 """
-                            result = await self.hebrew_agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
+                            result = await self.hebrew_agent.run(prompt, model_settings=self.ModelSettings(temperature=0.0))
                             response_text = result.output if hasattr(result, 'output') else str(result)
                             
                             # Try to parse JSON response
@@ -2086,3 +2104,298 @@ Return format: {return_format}
                 # In uvicorn/FastAPI, this shouldn't happen since we should use the async method directly
                 raise RuntimeError(f"Cannot run async method in sync context. Use the async qna method instead: {e}") from e
             
+    async def suggest_params_formulas(self, law_description: str) -> str:
+        """
+        🤖 AI-Powered Labor Law Implementation Assistant
+
+        This method analyzes Israeli labor law descriptions and provides comprehensive
+        recommendations for implementing them in your rule engine system as a formatted string.
+
+        🎯 **What it provides:**
+        - Parameter suggestions for dynamic_parameters.json
+        - Formula structures for compliance calculations
+        - Rule conditions and violation detection logic
+        - Step-by-step implementation guidance
+
+        📊 **System Context:**
+        - Uses dynamic parameters across 4 categories: payslip, attendance, contract, employee
+        - Parameters are accessed via dot notation (e.g., contract.hourly_rate)
+        - Formulas use Python syntax with mathematical functions
+        - Context is built using build_context() function
+
+        Args:
+            law_description (str): Natural language description of the labor law
+
+        Returns:
+            str: Human-readable formatted recommendations
+        """
+        try:
+            # Load current dynamic parameters configuration
+            from engine.dynamic_params import DynamicParams
+            dynamic_params = DynamicParams.load()
+
+            # Extract comprehensive parameter information
+            available_params = {}
+            for section, params_list in dynamic_params.items():
+                available_params[section] = params_list
+
+            # Available mathematical functions in rule engine
+            available_functions = ["min", "max", "abs", "round"]
+
+
+
+
+            prompt = f"""
+🤖 מסייע יישום חוקי עבודה – פורמט פלט ברור להדבקה ב-UI (ללא JSON)
+
+אתה מומחה לחוקי העבודה בישראל וליישומם במנוע כללים. נתח את תיאור החוק להלן וספק הנחיות יישום מלאות בעברית בלבד, בפורמט קריא ונטול JSON, כך שניתן יהיה להעתיק ישירות למסכי ה-Frontend.
+
+תיאור החוק לניתוח:
+{law_description}
+
+תקציר מנוע הכללים (כיוון הפלט):
+- הכללים נשמרים כ-JSON מאחורי הקלעים, אך המשתמש מזין דרך ה-Frontend בשדות נפרדים.
+- לכל כלל יש: rule_id (אופציונלי), name, effective_from (YYYY-MM-DD), effective_to (אופציונלי), checks (רשימת בדיקות).
+- לכל check יש שדות UI:
+    - condition (ביטוי פייתון שמחזיר True/False): משמש לזיהוי הפרה.
+    - amount_owed (ביטוי פייתון מספרי): סכום הפיצוי/החוב במקרה של הפרה.
+    - violation_message (טקסט), id (אופציונלי).
+- הערכה מתבצעת עם simpleeval. מותרות רק הפונקציות: {', '.join(available_functions)}.
+- זיהוי משתנים חסרים נעשה אוטומטית; במקרים כאלה הסטטוס יהיה inconclusive.
+- תחולה לפי תאריך: effective_from ≤ month ≤ effective_to (אם קיים). month בפורמט YYYY-MM.
+
+פרמטרים זמינים במערכת לפי קטגוריה (כבר קיימים):
+{chr(10).join([f"- {section}: {', '.join([p['param'] for p in params])}" for section, params in available_params.items()])}
+
+דגשים לכתיבת ביטויים:
+- כתוב ביטויי פייתון קצרים הניתנים להערכה ע"י simpleeval בלבד.
+- מותר להשתמש רק בפונקציות: {', '.join(available_functions)}.
+- מוסכמת טבלת החלטה: cond1 and value1 or cond2 and value2 or default.
+- העדף סוגריים חיצוניים סביב הביטוי הכולל כדי להבהיר סדר עדיפויות.
+
+הנחיות קריטיות לבחירת פרמטרים:
+• חשוב היטב לפני הצעת פרמטרים חדשים.
+• אל תעתיק אוטומטית את הדוגמה – בדוק מה נדרש לפי החוק.
+• אם ניתן להפיק את הפרמטר מתוך payslip, contract או attendance – הצע אותו בסעיף המתאים.
+• אם הפרמטר אינו קיים באף אחד מהשלושה, הצע להוסיפו לקטגוריית employee (לנתונים נוספים בלבד).
+• הסבר בקצרה מדוע בחרת את הסעיף לכל פרמטר חדש.
+
+---
+
+# 2. יצירת כלל במסך ניהול הכללים
+
+מלא את טופס הוספת כלל:
+
+* **שם הכלל:** Annual Leave Law Compliance
+* **effective_from:** 2017-01-01
+* **effective_to:** [השאר ריק]
+* **הודעת הפרה:** "יתרת ימי החופשה נמוכה מהמינימום החוקי לפי הוותק ומספר ימי העבודה בשבוע"
+* **הודעת ציות (אופציונלי):** "יתרת ימי החופשה עומדת במינימום החוקי בישראל"
+
+תנאי (condition) – העתק לשדה המתאים:
+````python
+contract.vacation_days_per_year >= (
+    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
+    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
+    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
+    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+)
+````
+
+נוסחת חישוב (amount_owed) – העתק לשדה המתאים:
+````python
+(
+    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
+    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
+    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
+    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+)
+````
+
+---
+
+הסבר פורמולה/תנאי
+• הסבר כיצד התנאי מזהה הפרה (True/False) והנוסחה מחשבת את סכום הפיצוי.
+• השתמש בטבלה להסבר אם אפשר, או בכל פורמט ברור אחר (דוגמה: טקסט, תרשים, דיאגרמה).
+• דוגמה להסבר:
+    - התנאי בודק האם ימי החופשה בתלוש עומדים במינימום החוקי לפי הוותק וימי העבודה בשבוע. אם לא – מזוהה הפרה.
+    - הנוסחה מחשבת את מספר ימי החופשה המינימלי שמגיע לעובד לפי החוק.
+    - בטבלה ניתן לראות את הקשר בין שנות ותק, ימי עבודה בשבוע, והזכאות לימי חופשה.
+
+| שנות ותק | 6 ימים/שבוע | 5 ימים/שבוע |
+|----------|-------------|-------------|
+| 1–4      | 13          | 11          |
+| 5        | 14          | 12          |
+| 6–8      | 19          | 17          |
+| 9+       | 26          | 23          |
+
+אם לא ניתן להסביר בטבלה, פרט במילים כיצד התנאי והנוסחה פועלים, מה ההיגיון, ומה המשמעות של כל משתנה.
+
+מבנה פלט נדרש – עברית בלבד, ללא JSON, להעתקה ישירה לשדות ה-UI:
+
+# 1. הוספת פרמטרים נדרשים
+
+במנהל הפרמטרים, תחת הסעיף המתאים (payslip, contract, attendance, או employee), הוסף:
+
+* **[section.param]**
+    * EN: *English Name*
+    * HE: *שם בעברית*
+    * Type: `number/string/bool`
+    * Description: תיאור קצר.
+    * הסבר בחירת הסעיף: מדוע הפרמטר שייך לקטגוריה זו (אם רלוונטי).
+
+---
+
+# 2. יצירת כלל במסך ניהול הכללים
+
+מלא את טופס הוספת כלל:
+
+* **שם הכלל:** Annual Leave Law Compliance
+* **effective_from:** 2017-01-01
+* **effective_to:** [השאר ריק]
+* **הודעת הפרה:** "יתרת ימי החופשה נמוכה מהמינימום החוקי לפי הוותק ומספר ימי העבודה בשבוע"
+* **הודעת ציות (אופציונלי):** "יתרת ימי החופשה עומדת במינימום החוקי בישראל"
+
+תנאי (condition) – העתק לשדה המתאים:
+````python
+contract.vacation_days_per_year >= (
+    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
+    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
+    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
+    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+)
+````
+
+נוסחת חישוב (amount_owed) – העתק לשדה המתאים:
+````python
+(
+    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
+    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
+    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
+    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+)
+````
+
+3) טבלת היגיון
+- טבלת Markdown המציגה טווחים/תנאים ומה הערך המוחזר (אם רלוונטי לחוק).
+
+4) הסבר פורמולה/תנאי
+- הסבר כיצד התנאי מזהה הפרה (True/False) והנוסחה מחשבת את סכום הפיצוי.
+- השתמש בטבלה להסבר אם אפשר, או בכל פורמט ברור אחר (דוגמה: טקסט, תרשים, דיאגרמה).
+- דוגמה להסבר:
+    - התנאי בודק האם ימי החופשה בתלוש עומדים במינימום החוקי לפי הוותק וימי העבודה בשבוע. אם לא – מזוהה הפרה.
+    - הנוסחה מחשבת את מספר ימי החופשה המינימלי שמגיע לעובד לפי החוק.
+    - בטבלה ניתן לראות את הקשר בין שנות ותק, ימי עבודה בשבוע, והזכאות לימי חופשה.
+
+| שנות ותק | 6 ימים/שבוע | 5 ימים/שבוע |
+|----------|-------------|-------------|
+| 1–4      | 13          | 11          |
+| 5        | 14          | 12          |
+| 6–8      | 19          | 17          |
+| 9+       | 26          | 23          |
+
+אם לא ניתן להסביר בטבלה, פרט במילים כיצד התנאי והנוסחה פועלים, מה ההיגיון, ומה המשמעות של כל משתנה.
+
+5) שימוש ב-Frontend
+- הוסף/עדכן פרמטרים (אם צריך) דרך מנהל הפרמטרים.
+- צור כלל חדש במסך הכללים והדבק את התנאי והנוסחה בשדות המתאימים.
+- ודא שימוש רק בפרמטרים הקיימים ובפונקציות המותרות.
+
+—
+
+דוגמה מנחה – חוק חופשה שנתית (מבנה בלבד, להתמצאות):
+
+פרמטרים נדרשים (להוספה ב-contract):
+- `[contract.years_seniority]` – שנות ותק (number)
+- `[contract.work_days_per_week]` – ימי עבודה בשבוע (5/6) (number)
+
+שדות למילוי:
+- שם הכלל: "Annual Leave Law – Minimum Entitlement"
+- מזהה כלל (אופציונלי): "annual_leave_minimum"
+- effective_from: 2017-01-01
+- effective_to: [ריק]
+- הודעת הפרה: "יתרת ימי החופשה נמוכה מהמינימום החוקי לפי הוותק ומספר ימי העבודה בשבוע"
+
+תנאי (condition):
+````python
+contract.vacation_days_per_year >= (
+    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
+    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
+    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
+    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+)
+````
+
+נוסחת חישוב (amount_owed):
+````python
+(
+    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
+    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
+    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
+    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
+    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
+    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+)
+````
+
+טבלת היגיון לדוגמה:
+
+| ותק (שנים) | 6 ימים/שבוע | 5 ימים/שבוע |
+|------------|--------------|--------------|
+| 1–4        | 13           | 11           |
+| 5          | 14           | 12           |
+| 6–8        | 19           | 17           |
+| 9+         | 26           | 23           |
+
+—
+
+כעת הפק פלט עבור תיאור החוק שסופק, בהתאם למבנה ולדגשים למעלה.
+
+חשוב מאוד:
+- לענות בעברית בלבד.
+- אין להחזיר JSON כלל. השתמש ברשימות נקודתיות ובקטעי קוד בלבד.
+- הוסף פרמטרים חדשים רק אם אינם קיימים ברשימה למעלה.
+- השתמש בשמות פרמטרים אמיתיים ובהיגיון חישובי הנאמן לדין הישראלי.
+- הקפד שהביטויים יהיו בני-הרצה עם הפונקציות המותרות בלבד: {', '.join(available_functions)}.
+"""
+
+                        # Call AI agent to generate suggestions
+            result = await self.agent.run(prompt, model_settings=ModelSettings(temperature=0.1))
+            return result.output
+
+        except Exception as e:
+            print(f"Error in AI suggestion generation: {e}")
+            return f"""❌ Error Generating Suggestions
+
+An error occurred while generating parameter and formula suggestions:
+
+**Error Details:** {str(e)}
+
+**Suggestions:**
+- Please check your law description and try again
+- Ensure the description is clear and specific
+- Try rephrasing complex legal terms
+
+If the problem persists, contact system administrator."""

@@ -74,7 +74,7 @@ with st.sidebar:
 
     # Document types
     st.subheader("Document Types")
-    doc_types = ["payslip", "attendance", "contract"]
+    doc_types = ["payslip", "attendance", "contract", "employee"]
     selected_types = {}
     for doc_type in doc_types:
         selected_types[doc_type] = st.checkbox(
@@ -167,8 +167,8 @@ with col1:
                 st.markdown(f"**{file.name}**")
                 file_type_mapping[i] = st.selectbox(
                     f"Document Type for {file.name}",
-                    options=["payslip", "attendance", "contract"],
-                    index=["payslip", "attendance", "contract"].index(suggested_mappings[i]),
+                    options=["payslip", "attendance", "contract", "employee"],
+                    index=["payslip", "attendance", "contract", "employee"].index(suggested_mappings[i]),
                     key=f"type_{i}"
                 )
 
@@ -249,7 +249,7 @@ if 'processing_result' in st.session_state:
     result = st.session_state.processing_result
 
     # Create tabs for different result types
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Summary", "💰 Payslips", "⏰ Attendance", "📋 Contracts"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Summary", "💰 Payslips", "⏰ Attendance", "📋 Contracts", "👤 Employees"])
 
     with tab1:
         st.subheader("Processing Summary")

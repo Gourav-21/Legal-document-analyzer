@@ -45,7 +45,7 @@ def get_all_dynamic_params():
 
 @router.get('/dynamic-params/{section}', response_model=List[ParameterResponse])
 def get_params_by_section(section: str):
-    """Get all parameters for a specific section (payslip, attendance, contract)."""
+    """Get all parameters for a specific section (payslip, attendance, contract, employee)."""
     try:
         params = DynamicParams.get_params(section)
         return params

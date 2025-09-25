@@ -29,6 +29,9 @@ class FixOCRRequest(BaseModel):
 class GenerateRuleRequest(BaseModel):
     rule_description: str
 
+class SuggestParamsFormulasRequest(BaseModel):
+    law_description: str
+
 
 @router.post("/export_excel")
 async def export_excel_endpoint(
@@ -69,22 +72,26 @@ async def create_report(
     payslip_text: List[dict] = Body(None),
     contract_text: dict = Body(None),
     attendance_text: List[dict] = Body(None),
+    employee_text: dict = Body(None),
     type: Optional[str] = Body(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Dict:
     try:
-        if not payslip_text and not contract_text and not attendance_text:
+        if not payslip_text and not contract_text and not attendance_text and not employee_text:
             raise HTTPException(
                 status_code=400,
                 detail="At least one document text must be provided"
             )
-        print(payslip_text)
-        print(attendance_text)
+        print("Payslip Text:", payslip_text)
+        print("Attendance Text:", attendance_text)
+        print("Employee Text:", employee_text)
+        print("Contract Text:", contract_text)
         result = await doc_processor.create_report_with_rule_engine(
             payslip_data=payslip_text,
             attendance_data=attendance_text,
             contract_data=contract_text,
+            employee_data=employee_text,
             analysis_type=type
         )
 
@@ -158,4 +165,23 @@ async def generate_rule_endpoint(
     except Exception as e:
         print(f"Error generating rule: {e}")
         raise HTTPException(status_code=500, detail=f"Error generating rule: {str(e)}")
+
+
+@router.post("/suggest-params-formulas")
+async def suggest_params_formulas_endpoint(
+    request_body: SuggestParamsFormulasRequest = Body(...),
+):
+    try:
+        # Delegate to document processor for AI-powered suggestions
+        suggestions = await doc_processor.suggest_params_formulas(request_body.law_description)
+        return {"suggestions": suggestions}
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(f"Error in parameter/formula suggestions endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating AI suggestions: {str(e)}"
+        )
 

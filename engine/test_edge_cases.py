@@ -5,18 +5,21 @@ from evaluator import RuleEvaluator
 import datetime
 
 
-def build_context(payslip, attendance, contract):
+def build_context(payslip, attendance, contract, employee=None):
     """Helper to build context"""
     context = {
         'employee_id': payslip['employee_id'],
         'month': payslip['month'],
         'payslip': payslip,
         'attendance': attendance,
-        'contract': contract
+        'contract': contract,
+        'employee': employee
     }
     context.update(payslip)
     context.update(attendance)
     context.update(contract)
+    if employee:
+        context.update(employee)
     return context
 
 
@@ -144,7 +147,7 @@ class TestEdgeCases:
             "hourly_rate": 35.0
         }
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         rule = EDGE_CASE_RULES["rules"][0]  # zero_division_protection
         
         # Should not crash due to division by zero
@@ -174,7 +177,7 @@ class TestEdgeCases:
             "hourly_rate": 30.0
         }
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         rule = EDGE_CASE_RULES["rules"][1]  # negative_values_handling
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
@@ -204,7 +207,7 @@ class TestEdgeCases:
             "hourly_rate": 32.0  # Below 35.0 threshold
         }
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         rule = EDGE_CASE_RULES["rules"][2]  # boundary_date_rule
         
         # Rule should be applicable for July 2024
@@ -262,7 +265,7 @@ class TestEdgeCases:
             "hourly_rate": 35.0
         }
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         rule = EDGE_CASE_RULES["rules"][3]  # missing_field_handling
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
@@ -292,7 +295,7 @@ class TestEdgeCases:
             "hourly_rate": 35.0  # < 40, so first condition should trigger
         }
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         rule = EDGE_CASE_RULES["rules"][4]  # complex_conditional
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
@@ -323,7 +326,7 @@ class TestEdgeCases:
             "hourly_rate": 45.0  # >= 40, so first condition false
         }
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         rule = EDGE_CASE_RULES["rules"][4]  # complex_conditional
         
         check_results, named_results = RuleEvaluator.evaluate_checks(rule["checks"], context)
@@ -358,7 +361,7 @@ class TestEdgeCases:
         attendance = {"employee_id": "EDGE007", "month": "2024-07"}
         contract = {"employee_id": "EDGE007", "hourly_rate": 30.0}
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         
         # Should handle invalid expressions gracefully without crashing
         check_results, named_results = RuleEvaluator.evaluate_checks(invalid_rule["checks"], context)
@@ -391,7 +394,7 @@ class TestEdgeCases:
             "hourly_rate": 0.01           # Very low rate
         }
         
-        context = build_context(payslip, attendance, contract)
+        context = build_context(payslip, attendance, contract, None)
         rule = EDGE_CASE_RULES["rules"][0]  # zero_division_protection
         
         # Should handle extreme values without overflow/underflow issues

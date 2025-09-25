@@ -116,9 +116,9 @@ def get_all_param_labels():
 
 
 
-def test_single_rule(rule, test_payslip, test_attendance, test_contract):
+def test_single_rule(rule, test_payslip, test_attendance, test_contract, test_employee=None):
     """Test a single rule against test data with detailed results"""
-    context = build_context(test_payslip, test_attendance, test_contract)
+    context = build_context(test_payslip, test_attendance, test_contract, test_employee)
     
     if not RuleEvaluator.is_rule_applicable(rule, test_payslip.get('month', datetime.now().strftime('%Y-%m'))):
         return {"applicable": False, "message": "Rule not applicable for this period"}
@@ -195,6 +195,7 @@ with tab1:
             include_payslip = st.checkbox("Include Payslip Data", value=True, key="test_include_payslip")
             include_contract = st.checkbox("Include Contract Data", value=True, key="test_include_contract")
             include_attendance = st.checkbox("Include Attendance Data", value=True, key="test_include_attendance")
+            include_employee = st.checkbox("Include Employee Data", value=True, key="test_include_employee")
 
         if include_payslip:
             st.markdown("---")
@@ -260,13 +261,32 @@ with tab1:
             for p in dynamic_params['contract']:
                 if p['param'] == 'employee_id':
                     test_contract_data[p['param']] = st.session_state.get(f"payslip_employee_id", "")
+        if include_employee:
+            st.markdown("---")
+            st.markdown("### 👤 Employee Details")
+            employee_inputs = {}
+            employee_fields = [p for p in dynamic_params.get('employee', []) if p['param'] != 'employee_id']
+            for i in range(0, len(employee_fields), 3):
+                cols = st.columns(3)
+                for j, p in enumerate(employee_fields[i:i+3]):
+                    label = p['label_en']
+                    key = f"employee_{p['param']}"
+                    param_type = p.get('type', 'string')
+                    if param_type == 'number':
+                        employee_inputs[p['param']] = cols[j].number_input(label, min_value=0, value=0, step=1, key=key)
+                    else:
+                        employee_inputs[p['param']] = cols[j].text_input(label, key=key)
+            test_employee_data = {**employee_inputs}
+            for p in dynamic_params.get('employee', []):
+                if p['param'] == 'employee_id':
+                    test_employee_data[p['param']] = st.session_state.get(f"payslip_employee_id", "")
 
     # Add new dynamic parameter section
 
     st.markdown("---")
     st.subheader("➕ Add/Remove Dynamic Parameter")
     with st.form("add_param_form"):
-        param_section = st.selectbox("Section", ["payslip", "attendance", "contract"], key="add_param_section")
+        param_section = st.selectbox("Section", ["payslip", "attendance", "contract", "employee"], key="add_param_section")
         param_name = st.text_input("Parameter Name (use snake_case)", key="add_param_name")
         param_label_en = st.text_input("English Label (shown in UI)", key="add_param_label_en")
         param_label_he = st.text_input("Hebrew Label (optional)", key="add_param_label_he")
@@ -284,7 +304,7 @@ with tab1:
     st.markdown("---")
     st.subheader("🗑️ Remove Dynamic Parameter")
     with st.form("remove_param_form"):
-        remove_section = st.selectbox("Section", ["payslip", "attendance", "contract"], key="remove_param_section")
+        remove_section = st.selectbox("Section", ["payslip", "attendance", "contract", "employee"], key="remove_param_section")
         current_params = get_param_names(remove_section)
         remove_param = st.selectbox("Parameter to Remove", current_params, key="remove_param_name")
         submit_remove_btn = st.form_submit_button("Remove Parameter")
@@ -367,6 +387,7 @@ with tab1:
                             payslip_data=payslip_list,
                             attendance_data=attendance_list,
                             contract_data=test_contract_data,
+                            employee_data=None,
                             analysis_type=analysis_type
                         ))
                         # Robust key access
@@ -450,6 +471,7 @@ with tab1:
                     payslip_data=payslip_list,
                     attendance_data=attendance_list,
                     contract_data=test_contract_data,
+                    employee_data=None,
                     analysis_type=selected_test_type
                 ))
                 # Robust key access
@@ -796,7 +818,7 @@ overtime_hours, total_hours, etc.
                                 "employee_id": test_employee_id,
                                 "hourly_rate": test_hourly_rate
                             }
-                            test_result = test_single_rule(current_rule, test_payslip, test_attendance, test_contract)
+                            test_result = test_single_rule(current_rule, test_payslip, test_attendance, test_contract, None)
                             if not test_result["applicable"]:
                                 st.warning(f"⚠️ {test_result['message']}")
                             elif "error" in test_result:
@@ -1047,9 +1069,9 @@ overtime_hours, total_hours, etc.
         ### Available Variables in Conditions and Calculations:
         """)
         dynamic_params = get_dynamic_params()
-        for section in ['payslip', 'attendance', 'contract']:
+        for section in ['payslip', 'attendance', 'contract', 'employee']:
             st.markdown(f"**{section.capitalize()} Data:**")
-            for p in dynamic_params[section]:
+            for p in dynamic_params.get(section, []):
                 st.markdown(f"- `{section}.{p['param']}` - {p['label_en']}")
             st.markdown("")
         st.markdown("**Flattened Access:** You can also access fields directly, e.g. `overtime_hours`, `hourly_rate`, etc.")
@@ -1291,7 +1313,7 @@ with tab3:
         st.markdown("---")
         st.subheader("➕ הוסף/הסר פרמטר דינמי")
         with st.form("add_param_form_heb"):
-            param_section = st.selectbox("סעיף", ["payslip", "attendance", "contract"], key="add_param_section_heb")
+            param_section = st.selectbox("סעיף", ["payslip", "attendance", "contract", "employee"], key="add_param_section_heb")
             param_name = st.text_input("שם פרמטר (snake_case)", key="add_param_name_heb")
             param_label_en = st.text_input("תווית באנגלית (מוצג בממשק)", key="add_param_label_en_heb")
             param_label_he = st.text_input("תווית בעברית (אופציונלי)", key="add_param_label_he_heb")
@@ -1309,7 +1331,7 @@ with tab3:
         st.markdown("---")
         st.subheader("🗑️ הסר פרמטר דינמי")
         with st.form("remove_param_form_heb"):
-            remove_section = st.selectbox("סעיף", ["payslip", "attendance", "contract"], key="remove_param_section_heb")
+            remove_section = st.selectbox("סעיף", ["payslip", "attendance", "contract", "employee"], key="remove_param_section_heb")
             current_params = get_param_names(remove_section)
             remove_param = st.selectbox("פרמטר להסרה", current_params, key="remove_param_name_heb")
             submit_remove_btn = st.form_submit_button("הסר פרמטר")
@@ -1384,6 +1406,7 @@ with tab3:
                                 payslip_data=payslip_list,
                                 attendance_data=attendance_list,
                                 contract_data=test_contract_data,
+                                employee_data=None,
                                 analysis_type=analysis_type
                             ))
                             # Robust key access
@@ -1453,6 +1476,7 @@ with tab3:
                         payslip_data=payslip_list,
                         attendance_data=attendance_list,
                         contract_data=test_contract_data,
+                        employee_data=None,
                         analysis_type=selected_test_type
                     ))
                     # Robust key access
@@ -1800,7 +1824,7 @@ overtime_hours, total_hours, etc.
                                 "employee_id": test_employee_id_heb,
                                 "hourly_rate": test_hourly_rate_heb
                             }
-                            test_result = test_single_rule(current_rule, test_payslip, test_attendance, test_contract)
+                            test_result = test_single_rule(current_rule, test_payslip, test_attendance, test_contract, None)
                             if not test_result["applicable"]:
                                 st.warning(f"⚠️ {test_result['message']}")
                             elif "error" in test_result:
