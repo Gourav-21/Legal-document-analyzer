@@ -1,5 +1,4 @@
 import pytest
-from loader import RuleLoader
 from evaluator import RuleEvaluator
  # Removed PenaltyCalculator import
 import datetime
@@ -112,3 +111,109 @@ def test_minimum_wage_violation(payslip, attendance, contract):
     assert check_results[0]["amount"] == pytest.approx((32.7 - 30.0) * 180)
 
 # More tests can be added for expired rules, missing fields, and multiple employees
+
+def test_hebrew_identifiers_in_expressions():
+    # Hebrew variable names should be supported in expressions and context
+    context = {
+        'משכורת_בסיס': 5000,
+        'שעות_נוספות': 10,
+        'שיעור_נוספות_125': 50,
+    }
+    condition_expr = 'משכורת_בסיס > 4000 and שעות_נוספות >= 10'
+    amount_expr = 'שעות_נוספות * שיעור_נוספות_125'
+
+    missing_cond = RuleEvaluator.find_missing_variables(condition_expr, context)
+    missing_amount = RuleEvaluator.find_missing_variables(amount_expr, context)
+    assert missing_cond == []
+    assert missing_amount == []
+
+    checks = [{
+        'id': 'hebrew_check',
+        'condition': condition_expr,
+        'amount_owed': amount_expr,
+        'violation_message': 'עברית תקינה'
+    }]
+    results, named = RuleEvaluator.evaluate_checks(checks, context)
+    assert results[0]['amount'] == 500
+    assert results[0]['message'] == 'עברית תקינה'
+
+def test_hebrew_dot_notation_identifiers():
+    # Support Hebrew identifiers with dot-notation
+    context = {
+        'תלוש': {
+            'שעות_נוספות': 3,
+            'שיעור_שעתי': 60,
+        }
+    }
+    condition_expr = 'תלוש.שעות_נוספות > 2'
+    amount_expr = 'תלוש.שעות_נוספות * תלוש.שיעור_שעתי'
+
+    assert RuleEvaluator.find_missing_variables(condition_expr, context) == []
+    assert RuleEvaluator.find_missing_variables(amount_expr, context) == []
+
+    checks = [{
+        'id': 'hebrew_dot',
+        'condition': condition_expr,
+        'amount_owed': amount_expr,
+        'violation_message': 'עברית עם נקודה'
+    }]
+    results, _ = RuleEvaluator.evaluate_checks(checks, context)
+    assert results[0]['amount'] == 180
+    assert results[0]['message'] == 'עברית עם נקודה'
+
+def test_hebrew_nested_attributes_three_levels():
+    # Verify deeper nesting with Hebrew keys
+    context = {
+        'עובד': {
+            'פרטים': {
+                'שם_העובד': 'ישראל ישראלי',
+                'גיל': 5,
+            }
+        }
+    }
+    condition_expr = 'עובד.פרטים.גיל >= 5'
+    amount_expr = 'עובד.פרטים.גיל * 100'
+
+    assert RuleEvaluator.find_missing_variables(condition_expr, context) == []
+    assert RuleEvaluator.find_missing_variables(amount_expr, context) == []
+
+    checks = [{
+        'id': 'hebrew_nested',
+        'condition': condition_expr,
+        'amount_owed': amount_expr,
+        'violation_message': 'עומק בעברית'
+    }]
+    results, _ = RuleEvaluator.evaluate_checks(checks, context)
+    assert results[0]['amount'] == 500
+
+def test_hebrew_missing_variables_detection():
+    # Ensure missing-variable detection works with Hebrew
+    context = {'שכר': 1000}
+    condition_expr = 'שכר > 0 and שעות_נוספות > 0'
+    amount_expr = 'שעות_נוספות * תעריף_נוספות'
+
+    missing_cond = RuleEvaluator.find_missing_variables(condition_expr, context)
+    missing_amount = RuleEvaluator.find_missing_variables(amount_expr, context)
+    assert set(missing_cond) == {'שעות_נוספות'}
+    assert set(missing_amount) == {'תעריף_נוספות', 'שעות_נוספות'}
+
+def test_mixed_hebrew_latin_identifiers():
+    # Expressions can mix Hebrew and Latin identifiers
+    context = {
+        'base_salary': 4000,
+        'תוספת': 250,
+    }
+    condition_expr = 'base_salary >= 4000 and תוספת >= 200'
+    amount_expr = 'base_salary + תוספת'
+
+    assert RuleEvaluator.find_missing_variables(condition_expr, context) == []
+    assert RuleEvaluator.find_missing_variables(amount_expr, context) == []
+
+    checks = [{
+        'id': 'mixed_identifiers',
+        'condition': condition_expr,
+        'amount_owed': amount_expr,
+        'violation_message': 'מעורב'
+    }]
+    results, _ = RuleEvaluator.evaluate_checks(checks, context)
+    assert results[0]['amount'] == 4250

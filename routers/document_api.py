@@ -157,6 +157,7 @@ async def generate_rule_endpoint(
     Requires authentication (current_user) and saves nothing to the DB — just returns the generated checks.
     """
     try:
+        print(f"Generating rule for description: {request_body.rule_description}")
         # Generate the rule using the document processor (loads dynamic params internally)
         generated_checks = await doc_processor.generate_ai_rule_checks(request_body.rule_description)
         return {"generated_checks": generated_checks}

@@ -337,15 +337,15 @@ Your task is to extract specific fields from provided Hebrew text content. You m
 הנחיות ליצירת הבדיקות:
 
 1. **בדיקות (checks)** - צור מערך של בדיקות עם השדות הבאים לכל בדיקה:
-   - id: מזהה ייחודי לבדיקה (באנגלית, עם קווים תחתונים)
-   - condition: תנאי בדיקה באמצעות הפרמטרים הזמינים (שימוש בתחביר Python)
-   - amount_owed: נוסחה לחישוב הסכום החסר (השתמש בפרמטרים ופונקציות זמינות)
-   - violation_message: הודעת הפרה ברורה בעברית
+    - id: מזהה ייחודי לבדיקה (באנגלית, עם קווים תחתונים)
+    - condition: תנאי בדיקה באמצעות הפרמטרים הזמינים (שימוש בתחביר Python, רק שמות פרמטרים בעברית)
+    - amount_owed: נוסחה לחישוב הסכום החסר (השתמש בפרמטרים ופונקציות זמינות, רק שמות פרמטרים בעברית)
+    - violation_message: הודעת הפרה ברורה בעברית
 
 2. **דוגמאות לתחביר**:
-   - condition: "attendance.overtime_hours > 2"
-   - amount_owed: "(contract.hourly_rate * 1.25 - payslip.overtime_rate) * min(attendance.overtime_hours, 2)"
-   - השתמש ב-min(), max(), abs() לפי הצורך
+    - condition: "נוכחות.שעות_נוספות > 2"
+    - amount_owed: "(חוזה.שיעור_שעתי * 1.25 - תלוש.שיעור_נוספות_משולם) * min(נוכחות.שעות_נוספות, 2)"
+    - השתמש ב-min(), max(), abs() לפי הצורך
 
 3. **חשוב**:
    - השתמש רק בפרמטרים מהרשימה הזמינה
@@ -354,19 +354,20 @@ Your task is to extract specific fields from provided Hebrew text content. You m
    - צור בדיקות מרובות אם נדרש לבדוק מקרים שונים
 
 החזר את התוצאה כ-JSON תקין בפורמט הבא:
+
 [
-  {{
-    "id": "overtime_first_2_hours",
-    "condition": "attendance.overtime_hours > 0",
-    "amount_owed": "min(attendance.overtime_hours, 2) * (contract.hourly_rate * 0.25)",
-    "violation_message": "השעות הנוספות הראשונות לא שולמו בתעריף הנכון"
-  }},
-  {{
-    "id": "overtime_additional_hours", 
-    "condition": "attendance.overtime_hours > 2",
-    "amount_owed": "(attendance.overtime_hours - 2) * (contract.hourly_rate * 0.5)",
-    "violation_message": "השעות הנוספות הנוספות לא שולמו בתעריף הנכון"
-  }}
+    {{
+        "id": "overtime_first_2_hours",
+        "condition": "נוכחות.שעות_נוספות > 0",
+        "amount_owed": "min(נוכחות.שעות_נוספות, 2) * (חוזה.שיעור_שעתי * 0.25)",
+        "violation_message": "השעות הנוספות הראשונות לא שולמו בתעריף הנכון"
+    }},
+    {{
+        "id": "overtime_additional_hours", 
+        "condition": "נוכחות.שעות_נוספות > 2",
+        "amount_owed": "(נוכחות.שעות_נוספות - 2) * (חוזה.שיעור_שעתי * 0.5)",
+        "violation_message": "השעות הנוספות הנוספות לא שולמו בתעריף הנכון"
+    }}
 ]
 """
         
@@ -462,41 +463,46 @@ Your task is to extract specific fields from provided Hebrew text content. You m
                     'employee': employee
                 }
                 
-                def coerce_value(value, param_type):
-                    if value is None:
-                        return None
-                    if param_type == "number":
-                        if isinstance(value, str):
-                            value = value.strip()
-                            # Remove commas for numbers like "5,300"
-                            value = value.replace(',', '')
+                # Helper to coerce values based on type hints in dynamic params
+                def coerce_value_by_type(raw_value, param_type):
+                    if raw_value is None:
+                        return None  # Keep None as None, don't default to 0
+                    if param_type == 'number':
+                        if isinstance(raw_value, (int, float)):
+                            return raw_value
+                        if isinstance(raw_value, str):
+                            v = raw_value.strip().replace(',', '')
                             try:
-                                # Try int first
-                                if '.' not in value:
-                                    return int(value)
-                                else:
-                                    return float(value)
-                            except ValueError:
-                                return value  # Keep as string if can't convert
-                        elif isinstance(value, (int, float)):
-                            return value
-                        else:
-                            return value
-                    else:  # string
-                        return str(value) if value is not None else None
-                
-                # Flatten all dynamic params for direct access with type coercion
+                                return int(v) if '.' not in v else float(v)
+                            except Exception:
+                                return raw_value
+                        return raw_value
+                    return raw_value
+
+                # Hebrew mapping: create mirrored Hebrew-accessible section aliases (no global flattening)
+                hebrew_section_names = {
+                    'payslip': 'תלוש',
+                    'attendance': 'נוכחות',
+                    'contract': 'חוזה',
+                    'employee': 'עובד',
+                }
+
+                # Initialize Hebrew section dicts as aliases to underlying dicts
+                for eng_section, heb_section in hebrew_section_names.items():
+                    section_data = locals()[eng_section] if eng_section in locals() else None
+                    context[heb_section] = section_data if isinstance(section_data, dict) else {}
+
+                # Populate section dictionaries with coerced param values under PARAM names (no label-based keys)
                 for section in ['payslip', 'attendance', 'contract', 'employee']:
                     section_data = locals()[section] if section in locals() and locals()[section] is not None else {}
+                    heb_section = hebrew_section_names[section]
                     for p in params.get(section, []):
-                        raw_value = section_data.get(p['param'], None)
+                        param_name = p['param']
                         param_type = p.get('type', 'number')
-                        # Only set if we have a value (don't overwrite with None)
-                        if raw_value is not None:
-                            context[p['param']] = coerce_value(raw_value, param_type)
-                # Add employee_id and month for legacy compatibility
-                context['employee_id'] = context.get('employee_id', payslip.get('employee_id', None))
-                context['month'] = context.get('month', payslip.get('month', None))
+                        raw_value = section_data.get(param_name, None)
+                        coerced_value = coerce_value_by_type(raw_value, param_type)
+                        context[section][param_name] = coerced_value
+                        context[heb_section][param_name] = coerced_value
                 return context
             
             # Step 1: Evaluate rules against the provided data using improved logic
@@ -520,14 +526,14 @@ Your task is to extract specific fields from provided Hebrew text content. You m
             
             # Process each payslip with month-based attendance matching
             for payslip in payslip_data:
-                emp_id = payslip.get('employee_id', 'unknown')
-                month = payslip.get('month', 'unknown')
+                emp_id = payslip.get('מזהה_עובד', 'unknown')
+                month = payslip.get('חודש', 'unknown')
                 print(f"Evaluating payslip for employee {emp_id}, month {month}...")
                 
                 # Aggregate all attendance records for this month (improved logic)
                 attendance_records = []
                 if attendance_data:
-                    attendance_records = [a for a in attendance_data if a.get('month') == month]
+                    attendance_records = [a for a in attendance_data if a.get('חודש') == month]
                 
                 if attendance_records:
                     # Sum numeric fields, keep others from the first record
@@ -997,31 +1003,26 @@ Your task is to extract specific fields from provided Hebrew text content. You m
                 payslip_counter += 1
                 structured_payslip = extracted_data.get('structured_data', {})
                 # Ensure required fields for rule engine
-                structured_payslip['employee_id'] = structured_payslip.get('employee_id')
-                structured_payslip['month'] = structured_payslip.get('month')  # Default fallback
+                structured_payslip['מזהה_עובד'] = structured_payslip.get('מזהה_עובד')
+                structured_payslip['חודש'] = structured_payslip.get('חודש')  # Default fallback
                 structured_payslip['document_number'] = payslip_counter
                 payslip_data.append(structured_payslip)
                 
             elif doc_type == "contract":
                 contract_counter += 1
                 structured_contract = extracted_data.get('structured_data', {})
-                structured_contract['employee_id'] = structured_contract.get('employee_id')
-                structured_contract['document_number'] = contract_counter
                 contract_data.append(structured_contract)
                 
             elif doc_type == "attendance":
                 attendance_counter += 1
                 structured_attendance = extracted_data.get('structured_data', {})
-                structured_attendance['employee_id'] = structured_attendance.get('employee_id')
-                structured_attendance['month'] = structured_attendance.get('month')  # Default fallback
+                structured_attendance['חודש'] = structured_attendance.get('חודש')  # Default fallback
                 structured_attendance['document_number'] = attendance_counter
                 attendance_data.append(structured_attendance)
                 
             elif doc_type == "employee":
                 employee_counter += 1
                 structured_employee = extracted_data.get('structured_data', {})
-                structured_employee['employee_id'] = structured_employee.get('employee_id')
-                structured_employee['document_number'] = employee_counter
                 employee_data.append(structured_employee)
 
         # Return in the format expected by create_report_with_rule_engine
@@ -1031,7 +1032,7 @@ Your task is to extract specific fields from provided Hebrew text content. You m
             "attendance_data": attendance_data,
             "employee_data": employee_data[0] if employee_data else {}  # Single employee dict as expected
         }
-
+        
     async def qna(self, report: str, questions: str) -> str:
         """Generate answer of queries based on the provided document content."""
         prompt = f"""
@@ -1604,7 +1605,7 @@ Use null for missing or unextractable values.
 
 Return format: {return_format}
 """
-                            result = await self.hebrew_agent.run(prompt, model_settings=self.ModelSettings(temperature=0.0))
+                            result = await self.hebrew_agent.run(prompt, model_settings=ModelSettings(temperature=0.0))
                             response_text = result.output if hasattr(result, 'output') else str(result)
                             
                             # Try to parse JSON response
@@ -1790,8 +1791,9 @@ Return format: {return_format}
             valid_dates = df_clean[date_col].dropna()
             if not valid_dates.empty:
                 days_worked = len(valid_dates.unique())
-                attendance_data['days_worked'] = str(days_worked)
-                print(f"Calculated days_worked: {days_worked}")
+                # Use Hebrew param name for days worked to match dynamic_parameters.json
+                attendance_data['ימי_עבודה'] = int(days_worked)
+                print(f"Calculated days_worked (ימי_עבודה): {days_worked}")
         except Exception as e:
             print(f"Error calculating days_worked: {e}")
 
@@ -1802,8 +1804,9 @@ Return format: {return_format}
                 months = valid_dates.dt.strftime('%Y-%m')
                 if not months.empty:
                     most_common_month = months.mode().iloc[0]
-                    attendance_data['month'] = most_common_month
-                    print(f"Calculated month: {most_common_month}")
+                    # Use Hebrew param name for month
+                    attendance_data['חודש'] = most_common_month
+                    print(f"Calculated month (חודש): {most_common_month}")
         except Exception as e:
             print(f"Error calculating month: {e}")
 
@@ -1888,8 +1891,9 @@ Return format: {return_format}
                     continue
 
             if valid_rows_count > 0:
-                attendance_data['total_hours'] = str(round(total_hours, 2))
-                print(f"Calculated total_hours: {total_hours:.2f}")
+                # Use Hebrew param name for total hours to match dynamic_parameters.json
+                attendance_data['סהכ_שעות'] = round(total_hours, 2)
+                print(f"Calculated total_hours (סהכ_שעות): {total_hours:.2f}")
 
         except Exception as e:
             print(f"Error calculating total_hours: {e}")
@@ -2194,29 +2198,29 @@ Return format: {return_format}
 
 תנאי (condition) – העתק לשדה המתאים:
 ````python
-contract.vacation_days_per_year >= (
-    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
-    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
-    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
-    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+חוזה.ימי_חופשה_בשנה >= (
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק < 5 and 13 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק < 5 and 11 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק == 5 and 14 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק == 5 and 12 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 19 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 17 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 9 and 26 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 9 and 23
 )
 ````
 
 נוסחת חישוב (amount_owed) – העתק לשדה המתאים:
 ````python
 (
-    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
-    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
-    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
-    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק < 5 and 13 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק < 5 and 11 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק == 5 and 14 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק == 5 and 12 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 19 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 17 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 9 and 26 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 9 and 23
 )
 ````
 
@@ -2266,29 +2270,29 @@ contract.vacation_days_per_year >= (
 
 תנאי (condition) – העתק לשדה המתאים:
 ````python
-contract.vacation_days_per_year >= (
-    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
-    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
-    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
-    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+חוזה.ימי_חופשה_בשנה >= (
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק < 5 and 13 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק < 5 and 11 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק == 5 and 14 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק == 5 and 12 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 19 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 17 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 9 and 26 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 9 and 23
 )
 ````
 
 נוסחת חישוב (amount_owed) – העתק לשדה המתאים:
 ````python
 (
-    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
-    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
-    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
-    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק < 5 and 13 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק < 5 and 11 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק == 5 and 14 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק == 5 and 12 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 19 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 6 and חוזה.שנות_ותק < 9 and 17 or
+    חוזה.ימי_עבודה_בשבוע == 6 and חוזה.שנות_ותק >= 9 and 26 or
+    חוזה.ימי_עבודה_בשבוע == 5 and חוזה.שנות_ותק >= 9 and 23
 )
 ````
 
@@ -2316,58 +2320,6 @@ contract.vacation_days_per_year >= (
 - הוסף/עדכן פרמטרים (אם צריך) דרך מנהל הפרמטרים.
 - צור כלל חדש במסך הכללים והדבק את התנאי והנוסחה בשדות המתאימים.
 - ודא שימוש רק בפרמטרים הקיימים ובפונקציות המותרות.
-
-—
-
-דוגמה מנחה – חוק חופשה שנתית (מבנה בלבד, להתמצאות):
-
-פרמטרים נדרשים (להוספה ב-contract):
-- `[contract.years_seniority]` – שנות ותק (number)
-- `[contract.work_days_per_week]` – ימי עבודה בשבוע (5/6) (number)
-
-שדות למילוי:
-- שם הכלל: "Annual Leave Law – Minimum Entitlement"
-- מזהה כלל (אופציונלי): "annual_leave_minimum"
-- effective_from: 2017-01-01
-- effective_to: [ריק]
-- הודעת הפרה: "יתרת ימי החופשה נמוכה מהמינימום החוקי לפי הוותק ומספר ימי העבודה בשבוע"
-
-תנאי (condition):
-````python
-contract.vacation_days_per_year >= (
-    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
-    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
-    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
-    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
-)
-````
-
-נוסחת חישוב (amount_owed):
-````python
-(
-    contract.work_days_per_week == 6 and contract.years_seniority < 5 and 13 or
-    contract.work_days_per_week == 5 and contract.years_seniority < 5 and 11 or
-    contract.work_days_per_week == 6 and contract.years_seniority == 5 and 14 or
-    contract.work_days_per_week == 5 and contract.years_seniority == 5 and 12 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 19 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 6 and contract.years_seniority < 9 and 17 or
-    contract.work_days_per_week == 6 and contract.years_seniority >= 9 and 26 or
-    contract.work_days_per_week == 5 and contract.years_seniority >= 9 and 23
-)
-````
-
-טבלת היגיון לדוגמה:
-
-| ותק (שנים) | 6 ימים/שבוע | 5 ימים/שבוע |
-|------------|--------------|--------------|
-| 1–4        | 13           | 11           |
-| 5          | 14           | 12           |
-| 6–8        | 19           | 17           |
-| 9+         | 26           | 23           |
 
 —
 

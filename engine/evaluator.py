@@ -73,13 +73,14 @@ class RuleEvaluator:
                         else:
                             found = False
                             break
-                    if not found:
+                    # Check if found but value is None
+                    if not found or current is None:
                         missing.append(var)
                 except (KeyError, TypeError, AttributeError):
                     missing.append(var)
             else:
-                # Handle simple variable names
-                if var not in context:
+                # Handle simple variable names - check existence and None value
+                if var not in context or context[var] is None:
                     missing.append(var)
         
         return sorted(missing)

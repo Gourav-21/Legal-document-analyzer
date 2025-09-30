@@ -1,13 +1,17 @@
 from loader import RuleLoader
 from evaluator import RuleEvaluator
 import pytest
+from pathlib import Path
 
 from main import build_context
 
 def test_compliant_payslip():
     # Load compliant payslip
-    input_data = RuleLoader.load_input('../data/compliant_payslip_test.json')
-    rules_data = RuleLoader.load_rules('../rules/labor_law_rules.json')
+    repo_root = Path(__file__).resolve().parents[1]
+    data_path = repo_root / 'data' / 'compliant_payslip_test.json'
+    rules_path = repo_root / 'rules' / 'labor_law_rules.json'
+    input_data = RuleLoader.load_input(str(data_path))
+    rules_data = RuleLoader.load_rules(str(rules_path))
 
     payslip = input_data['payslip'][0]
     attendance = input_data['attendance'][0]

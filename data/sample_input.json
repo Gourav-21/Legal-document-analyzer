@@ -1,41 +1,41 @@
 {
   "payslip": [
     {
-      "employee_id": "TEST_001",
-      "month": "2024-01",
-      "base_salary": 5000,
-      "overtime_hours": 10,
-      "overtime_pay": 300,
-      "overtime_rate": 30,
-      "total_salary": 5300,
-      "hours_worked": 196,
-      "hourly_rate": 26.88
+      "מזהה_עובד": "TEST_001",
+      "חודש": "2024-01",
+      "משכורת_בסיס": 5000,
+      "שעות_נוספות": 10,
+      "תשלום_נוספות": 300,
+      "שיעור_נוספות_משולם": 30,
+      "משכורת_כוללת": 5300,
+      "שעות_עבודה": 196,
+      "שיעור_שעתי": 26.88
     }
   ],
   "attendance": [
     {
-      "employee_id": "TEST_001",
-      "month": "2024-01",
-      "days_worked": 22,
-      "regular_hours": 186,
-      "overtime_hours": 10,
-      "total_hours": 196,
-      "sick_days": 0,
-      "vacation_days": 0
+      "מזהה_עובד": "TEST_001",
+      "חודש": "2024-01",
+      "ימי_עבודה": 22,
+      "שעות_רגילות": 186,
+      "שעות_נוספות": 10,
+      "סהכ_שעות": 196,
+      "ימי_מחלה": 0,
+      "ימי_חופשה": 0
     }
   ],
   "contract": [
     {
-      "employee_id": "TEST_001",
-      "minimum_wage_monthly": 5300,
-      "minimum_wage_hourly": 29.12,
-      "hourly_rate": 26.88,
-      "overtime_rate_125": 1.25,
-      "overtime_rate_150": 1.5,
-      "standard_hours_per_month": 186,
-      "standard_hours_per_day": 8,
-      "vacation_days_per_year": 14,
-      "sick_days_per_year": 18
+      "מזהה_עובד": "TEST_001",
+      "שכר_מינימום_חודשי": 5300,
+      "שכר_מינימום_שעתי": 29.12,
+      "שיעור_שעתי": 26.88,
+      "שיעור_נוספות_125": 1.25,
+      "שיעור_נוספות_150": 1.5,
+      "שעות_סטנדרטיות_לחודש": 186,
+      "שעות_סטנדרטיות_ליום": 8,
+      "ימי_חופשה_בשנה": 14,
+      "ימי_מחלה_בשנה": 18
     }
   ]
 }

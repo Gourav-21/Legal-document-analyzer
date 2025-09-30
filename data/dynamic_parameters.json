@@ -1,63 +1,63 @@
 {
   "payslip": [
     {
-      "param": "employee_id",
+      "param": "מזהה_עובד",
       "label_en": "Employee ID",
       "label_he": "מזהה עובד",
       "description": "Unique identifier for the employee",
       "type": "string"
     },
     {
-      "param": "month",
+      "param": "חודש",
       "label_en": "Month (YYYY-MM)",
       "label_he": "חודש (YYYY-MM)",
       "description": "The month and year for the payslip period",
       "type": "string"
     },
     {
-      "param": "base_salary",
+      "param": "משכורת_בסיס",
       "label_en": "Base Salary (₪)",
       "label_he": "משכורת בסיס (₪)",
       "description": "The employee's base salary amount in shekels",
       "type": "number"
     },
     {
-      "param": "overtime_hours",
+      "param": "שעות_נוספות",
       "label_en": "Overtime Hours",
       "label_he": "שעות נוספות",
       "description": "Number of overtime hours worked",
       "type": "number"
     },
     {
-      "param": "overtime_pay",
+      "param": "תשלום_נוספות",
       "label_en": "Total Overtime Pay (₪)",
       "label_he": "תשלום נוספות כולל (₪)",
       "description": "Total payment for overtime hours",
       "type": "number"
     },
     {
-      "param": "overtime_rate",
+      "param": "שיעור_נוספות_משולם",
       "label_en": "Overtime Rate Paid (₪/hour)",
       "label_he": "שיעור נוספות משולם (₪/שעה)",
       "description": "The hourly rate paid for overtime work",
       "type": "number"
     },
     {
-      "param": "total_salary",
+      "param": "משכורת_כוללת",
       "label_en": "Total Salary (₪)",
       "label_he": "משכורת כוללת (₪)",
       "description": "Total salary including all components",
       "type": "number"
     },
     {
-      "param": "hours_worked",
+      "param": "שעות_עבודה",
       "label_en": "Hours Worked",
       "label_he": "שעות עבודה",
       "description": "Total hours worked in the period",
       "type": "number"
     },
     {
-      "param": "hourly_rate",
+      "param": "שיעור_שעתי",
       "label_en": "Hourly Rate (₪)",
       "label_he": "שיעור שעתי (₪)",
       "description": "The employee's hourly wage rate",
@@ -66,56 +66,49 @@
   ],
   "attendance": [
     {
-      "param": "employee_id",
-      "label_en": "Employee ID",
-      "label_he": "מזהה עובד",
-      "description": "Unique identifier for the employee",
-      "type": "string"
-    },
-    {
-      "param": "month",
+      "param": "חודש",
       "label_en": "Month (YYYY-MM)",
       "label_he": "חודש (YYYY-MM)",
       "description": "The month and year for attendance records",
       "type": "string"
     },
     {
-      "param": "days_worked",
+      "param": "ימי_עבודה",
       "label_en": "Days Worked",
       "label_he": "ימי עבודה",
       "description": "Number of days worked in the period",
       "type": "number"
     },
     {
-      "param": "regular_hours",
+      "param": "שעות_רגילות",
       "label_en": "Regular Hours",
       "label_he": "שעות רגילות",
       "description": "Regular working hours",
       "type": "number"
     },
     {
-      "param": "overtime_hours",
+      "param": "שעות_נוספות",
       "label_en": "Overtime Hours",
       "label_he": "שעות נוספות",
       "description": "Overtime hours worked",
       "type": "number"
     },
     {
-      "param": "total_hours",
+      "param": "סהכ_שעות",
       "label_en": "Total Hours",
       "label_he": "סה\"כ שעות",
       "description": "Total hours worked including regular and overtime",
       "type": "number"
     },
     {
-      "param": "sick_days",
+      "param": "ימי_מחלה",
       "label_en": "Sick Days",
       "label_he": "ימי מחלה",
       "description": "Number of sick days taken",
       "type": "number"
     },
     {
-      "param": "vacation_days",
+      "param": "ימי_חופשה",
       "label_en": "Vacation Days",
       "label_he": "ימי חופשה",
       "description": "Number of vacation days taken",
@@ -124,77 +117,70 @@
   ],
   "contract": [
     {
-      "param": "employee_id",
-      "label_en": "Employee ID",
-      "label_he": "מזהה עובד",
-      "description": "Unique identifier for the employee",
-      "type": "string"
-    },
-    {
-      "param": "minimum_wage_monthly",
+      "param": "שכר_מינימום_חודשי",
       "label_en": "Minimum Wage Monthly",
       "label_he": "שכר מינימום חודשי",
       "description": "Monthly minimum wage requirement",
       "type": "number"
     },
     {
-      "param": "minimum_wage_hourly",
+      "param": "שכר_מינימום_שעתי",
       "label_en": "Minimum Wage Hourly",
       "label_he": "שכר מינימום שעתי",
       "description": "Hourly minimum wage requirement",
       "type": "number"
     },
     {
-      "param": "hourly_rate",
+      "param": "שיעור_שעתי",
       "label_en": "Hourly Rate (₪)",
       "label_he": "שיעור שעתי (₪)",
       "description": "Contracted hourly wage rate",
       "type": "number"
     },
     {
-      "param": "overtime_rate_125",
+      "param": "שיעור_נוספות_125",
       "label_en": "Overtime Rate 125%",
       "label_he": "שיעור נוספות 125%",
       "description": "Overtime rate at 125% of regular pay",
       "type": "number"
     },
     {
-      "param": "overtime_rate_150",
+      "param": "שיעור_נוספות_150",
       "label_en": "Overtime Rate 150%",
       "label_he": "שיעור נוספות 150%",
       "description": "Overtime rate at 150% of regular pay",
       "type": "number"
     },
     {
-      "param": "standard_hours_per_month",
+      "param": "שעות_סטנדרטיות_לחודש",
       "label_en": "Standard Hours Per Month",
       "label_he": "שעות סטנדרטיות לחודש",
       "description": "Standard working hours per month",
       "type": "number"
     },
     {
-      "param": "standard_hours_per_day",
+      "param": "שעות_סטנדרטיות_ליום",
       "label_en": "Standard Hours Per Day",
       "label_he": "שעות סטנדרטיות ליום",
       "description": "Standard working hours per day",
       "type": "number"
     },
     {
-      "param": "vacation_days_per_year",
+      "param": "ימי_חופשה_בשנה",
       "label_en": "Vacation Days Per Year",
       "label_he": "ימי חופשה לשנה",
       "description": "Annual vacation days entitlement",
       "type": "number"
     },
     {
-      "param": "sick_days_per_year",
+      "param": "ימי_מחלה_בשנה",
       "label_en": "Sick Days Per Year",
       "label_he": "ימי מחלה לשנה",
       "description": "Annual sick days entitlement",
       "type": "number"
     },
     {
-      "param": "pension_contribution",
+      "param": "הפרשה_לפנסיה",
       "label_en": "Pension Contribution (%)",
       "label_he": "הפרשה לפנסיה (%)",
       "description": "Percentage of salary contributed to pension",
@@ -203,18 +189,18 @@
   ],
   "employee": [
     {
-      "param": "employee_name",
+      "param": "שם_העובד",
       "label_en": "Employee Name",
       "label_he": "שם העובד",
       "description": "Full name of the employee",
       "type": "string"
     },
-   {
-    "param":"age",
-    "label_en":"Age",
-    "label_he":"גיל",
-    "description":"Age of the employee",
-    "type":"number"
-   }
+    {
+      "param": "גיל",
+      "label_en": "Age",
+      "label_he": "גיל",
+      "description": "Age of the employee",
+      "type": "number"
+    }
   ]
 }
